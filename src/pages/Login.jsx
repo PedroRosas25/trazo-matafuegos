@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+// Importamos signInWithRedirect en lugar de Popup
+import { signInWithRedirect } from 'firebase/auth';
 import { auth, googleProvider } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,9 +10,6 @@ export default function Login() {
   const { user, userData } = useAuth(); 
 
   useEffect(() => {
-    // Rastreador constante
-    console.log("Estado de sesión -> Google User:", user?.email, "| Firebase Datos:", userData);
-    
     if (user && userData) {
       if (userData.rol === 'admin' || userData.rol === 'gestor') {
         navigate('/dashboard');
@@ -24,12 +22,11 @@ export default function Login() {
   }, [user, userData, navigate]);
 
   const handleGoogleLogin = async () => {
-    console.log("1. Botón presionado. Abriendo ventanita...");
     try {
-      const credencial = await signInWithPopup(auth, googleProvider);
-      console.log("2. Ventanita cerrada OK. Google autorizó a:", credencial.user.email);
+      // Método profesional para móviles y Vercel (esquiva el bloqueador de popups)
+      await signInWithRedirect(auth, googleProvider);
     } catch (error) {
-      console.error("X. Falló la ventanita:", error.code, error.message);
+      console.error("Error al iniciar sesión:", error);
       alert("Hubo un problema con Google: " + error.message);
     }
   };
