@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+/* 1. Definición de la paleta de colores y fuentes de Trazo */
+@theme {
+  --color-ink: #1B2226;
+  --color-paper: #F4F5F1;
+  --color-paper-2: #FFFFFF;
+  --color-steel: #DEE1DC;
+  --color-steel-2: #AEB3AC;
+  --color-red: #C8102E;
+  --color-red-dark: #8C0B20;
+  --color-green: #1F7A4D;
+  --color-green-bg: #E7F3EC;
+  --color-amber: #B4650A;
+  --color-amber-bg: #FBEEDD;
+  
+  --font-sans: 'Inter', sans-serif;
+  --font-oswald: 'Oswald', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+/* 2. Clases globales reutilizables para limpiar el HTML (JSX) */
+@layer components {
+  /* Botones */
+  .btn {
+    @apply w-full font-semibold text-sm py-3 rounded transition-colors cursor-pointer flex items-center justify-center gap-2;
+  }
+  .btn-primary {
+    @apply bg-ink text-white border border-ink hover:bg-black;
+  }
+  .btn-outline {
+    @apply bg-transparent text-ink border border-ink hover:bg-paper;
+  }
+  .btn-google {
+    @apply bg-white text-ink border border-steel shadow-sm hover:bg-paper;
+  }
+
+  /* Formularios */
+  .form-label {
+    @apply block text-[11px] font-semibold uppercase tracking-wider text-[#5B615E] mb-1.5;
+  }
+  .form-input {
+    @apply w-full border border-steel rounded px-3 py-2.5 text-sm font-sans focus:outline-none focus:border-ink transition-colors;
+  }
+
+  /* Tarjetas (Cards) */
+  .card-base {
+    @apply bg-paper-2 border border-steel rounded-md;
+  }
+}
+
+/* 3. Estilos base para toda la app */
+@layer base {
+  body {
+    @apply bg-paper text-ink font-sans antialiased m-0;
+  }
+  h1, h2, h3, h4 {
+    @apply font-oswald font-semibold uppercase tracking-wide m-0;
+  }
+}
