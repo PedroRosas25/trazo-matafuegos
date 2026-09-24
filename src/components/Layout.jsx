@@ -1,12 +1,12 @@
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
 
 export default function Layout() {
-  const { userData, logout } = useAuth();
+  const { userData } = useAuth();
   const navigate = useNavigate();
+
   const handleLogout = async () => {
     try {
       await signOut(auth); // Firebase destruye la sesión activa
@@ -56,7 +56,7 @@ export default function Layout() {
         </div>
         
         {/* Botón de cerrar sesión abajo en PC */}
-        <button onClick={logout} className="hidden md:block text-left text-[12.5px] text-steel-2 hover:text-white transition-colors">
+        <button onClick={handleLogout} className="hidden md:block text-left text-[12.5px] text-steel-2 hover:text-white transition-colors">
           ← Cerrar sesión
         </button>
       </div>
