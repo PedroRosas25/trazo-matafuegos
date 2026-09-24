@@ -1,9 +1,20 @@
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { signOut } from 'firebase/auth';
+import { auth } from '../services/firebase';
 
 export default function Layout() {
   const { userData, logout } = useAuth();
   const navigate = useNavigate();
+  const handleLogout = async () => {
+    try {
+      await signOut(auth); // Firebase destruye la sesión activa
+      navigate('/'); // Te manda de un plumazo al Login
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+    }
+  };
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-paper">
@@ -25,7 +36,7 @@ export default function Layout() {
             </div>
             
             {/* Botón de cerrar sesión visible arriba en celular */}
-            <button onClick={logout} className="text-[12.5px] text-steel-2 hover:text-white transition-colors md:hidden">
+            <button onClick={handleLogout} className="text-[12.5px] text-steel-2 hover:text-white transition-colors md:hidden">
               Cerrar sesión
             </button>
           </div>
