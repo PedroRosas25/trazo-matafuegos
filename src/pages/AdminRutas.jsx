@@ -22,7 +22,6 @@ export default function AdminRutas() {
   const [procesando, setProcesando] = useState(false);
   const [tecnicoSeleccionado, setTecnicoSeleccionado] = useState("");
 
-  // Le agregamos un parámetro "silencioso" para que no muestre el cartel de cargando al actualizar
   const fetchData = async (silencioso = false) => {
     if (!userData || !userData.empresaId) return;
     if (!silencioso) setLoading(true);
@@ -58,14 +57,14 @@ export default function AdminRutas() {
     try {
       await addDoc(collection(db, "rutas"), {
         empresaId: userData.empresaId,
-        tecnicoId: tecnico.id,
+        tecnicoId: tecnico.id, // Email del técnico
         tecnicoNombre: tecnico.nombre,
         fecha: new Date().toLocaleDateString('es-AR'),
         estado: 'pendiente',
         paradas: [] 
       });
       setTecnicoSeleccionado("");
-      await fetchData(true); // Recarga silenciosa
+      await fetchData(true);
     } catch (error) {
       console.error("Error creando ruta:", error);
     } finally {
@@ -87,7 +86,6 @@ export default function AdminRutas() {
     const local = locales.find(l => l.id === localId);
     const rutaIndex = rutas.findIndex(r => r.id === rutaId);
     
-    // Evitar errores o duplicados
     if (rutaIndex === -1 || rutas[rutaIndex].paradas.some(p => p.localId === localId)) return;
 
     const nuevaParada = {
@@ -99,7 +97,6 @@ export default function AdminRutas() {
       lng: local.ubi ? local.ubi.longitude : 0
     };
 
-    // MAGIA VISUAL: Actualizamos la pantalla instantáneamente sin esperar a Firebase
     const nuevasRutas = [...rutas];
     nuevasRutas[rutaIndex] = {
       ...nuevasRutas[rutaIndex],
@@ -107,13 +104,12 @@ export default function AdminRutas() {
     };
     setRutas(nuevasRutas);
 
-    // Guardado silencioso en segundo plano
     try {
       const rutaRef = doc(db, "rutas", rutaId);
       await updateDoc(rutaRef, { paradas: nuevasRutas[rutaIndex].paradas });
     } catch (error) {
       console.error("Error al asignar local:", error);
-      fetchData(true); // Si Firebase falla, revertimos el estado visual
+      fetchData(true); 
     }
   };
 
@@ -122,12 +118,10 @@ export default function AdminRutas() {
     const rutaIndex = rutas.findIndex(r => r.id === rutaId);
     const nuevasParadas = rutas[rutaIndex].paradas.filter(p => p.localId !== localId);
     
-    // Actualizamos pantalla al instante
     const nuevasRutas = [...rutas];
     nuevasRutas[rutaIndex] = { ...nuevasRutas[rutaIndex], paradas: nuevasParadas };
     setRutas(nuevasRutas);
 
-    // Guardamos en Firebase por detrás
     try {
       await updateDoc(doc(db, "rutas", rutaId), { paradas: nuevasParadas });
     } catch (error) {
@@ -197,7 +191,7 @@ export default function AdminRutas() {
       });
 
       await batch.commit();
-      await fetchData(true); // Recarga silenciosa al terminar
+      await fetchData(true); 
     } catch (error) {
       console.error("Error generando rutas:", error);
       alert("Hubo un error al generar las rutas.");
@@ -210,7 +204,7 @@ export default function AdminRutas() {
   const handleEliminarRuta = async (rutaId) => {
     if (!window.confirm("¿Eliminar esta ruta completa?")) return;
     
-    setRutas(rutas.filter(r => r.id !== rutaId)); // Limpiamos pantalla rápido
+    setRutas(rutas.filter(r => r.id !== rutaId)); 
     
     try {
       await deleteDoc(doc(db, "rutas", rutaId));
@@ -222,19 +216,25 @@ export default function AdminRutas() {
 
   if (loading) return <div className="p-8 font-mono text-sm">Cargando centro de logística...</div>;
 
-  // Calculamos en vivo qué locales mostrar a la derecha
   const localesEnRuta = rutas.flatMap(r => r.paradas.map(p => p.localId));
   const pendientes = locales.filter(l => !localesEnRuta.includes(l.id));
 
   return (
     <div className="pb-20 font-sans">
+      
+      <button 
+        onClick={() => window.history.back()} 
+        className="text-steel-2 text-[13px] hover:text-ink mb-6 flex items-center gap-2 font-medium bg-transparent border-none p-0 cursor-pointer"
+      >
+        <span className="text-lg leading-none">&lsaquo;</span> Volver al Panel General
+      </button>
+
       <div className="mb-6 flex justify-between items-end flex-wrap gap-4">
         <div>
           <h1 className="text-[21px] text-ink font-oswald uppercase tracking-wide font-semibold">Logística Inteligente</h1>
           <p className="text-steel-2 text-[13.5px] mt-1">{tecnicos.length} técnicos · {pendientes.length} sin asignar</p>
         </div>
         
-        {/* Controles Superiores */}
         <div className="flex gap-2 flex-wrap items-center">
           <div className="flex bg-white border border-steel rounded overflow-hidden">
             <select 

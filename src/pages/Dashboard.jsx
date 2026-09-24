@@ -85,7 +85,7 @@ export default function Dashboard() {
   };
 
   const handleEditClientClick = (e, local) => {
-    e.stopPropagation(); // Evita que se dispare el click de la fila entera (que lleva al detalle)
+    e.stopPropagation(); 
     setEditingClient({
       ...local,
       lat: local.ubi ? local.ubi.latitude : '',
@@ -145,10 +145,9 @@ export default function Dashboard() {
   const handleUpdateTech = async (e) => {
     e.preventDefault();
     try {
-      const emailViejo = editingTech.id; // El ID original del documento
+      const emailViejo = editingTech.id; 
       const emailNuevo = editingTech.email.toLowerCase();
 
-      // Si cambió el email (que es el ID), tenemos que crear un doc nuevo y borrar el viejo
       if (emailViejo !== emailNuevo) {
         await setDoc(doc(db, "usuarios", emailNuevo), {
           email: emailNuevo,
@@ -158,9 +157,8 @@ export default function Dashboard() {
           rol: 'tecnico',
           empresaId: userData.empresaId
         });
-        await deleteDoc(doc(db, "usuarios", emailViejo)); // Borramos el ID viejo
+        await deleteDoc(doc(db, "usuarios", emailViejo)); 
       } else {
-        // Si el email es el mismo, solo actualizamos los campos normales
         await updateDoc(doc(db, "usuarios", emailViejo), {
           nombre: editingTech.nombre,
           telefono: editingTech.telefono,
@@ -209,7 +207,14 @@ export default function Dashboard() {
           <h1 className="text-[21px] text-ink font-oswald uppercase tracking-wide font-semibold">Panel General</h1>
           <p className="text-steel-2 text-[13.5px] mt-1.5">{userData?.nombre || 'Empresa'} — ID: <span className="font-mono text-xs">{userData?.empresaId}</span></p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <button 
+            onClick={() => navigate('/admin-rutas')} 
+            className="btn bg-ink text-white hover:bg-black px-4 py-2 text-xs w-auto flex items-center gap-2 font-bold uppercase tracking-wider shadow-sm"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M9 20l-5-5 5-5M14 4l5 5-5 5"/></svg>
+            Logística y Rutas
+          </button>
           <button onClick={() => setShowTechModal(true)} className="btn btn-outline px-4 py-2 text-xs w-auto">+ Nuevo Técnico</button>
           <button onClick={() => setShowClientModal(true)} className="btn btn-primary px-4 py-2 text-xs w-auto">+ Nuevo Cliente</button>
         </div>
@@ -253,7 +258,7 @@ export default function Dashboard() {
                   <th className="font-semibold text-[10.5px] uppercase tracking-wider px-5 py-3">Equipos</th>
                   <th className="font-semibold text-[10.5px] uppercase tracking-wider px-5 py-3">Próx. Vencimiento</th>
                   <th className="font-semibold text-[10.5px] uppercase tracking-wider px-5 py-3">Estado</th>
-                  <th className="px-5 py-3"></th> {/* Columna para botón de editar */}
+                  <th className="px-5 py-3"></th>
                 </tr>
               </thead>
               <tbody>
