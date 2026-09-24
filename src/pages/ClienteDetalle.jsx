@@ -69,6 +69,7 @@ export default function ClienteDetalle() {
     }
   };
 
+  // ===================== CRUD MATAFUEGOS =====================
   const handleAddEquipo = async (e) => {
     e.preventDefault();
     try {
@@ -83,7 +84,13 @@ export default function ClienteDetalle() {
       };
 
       if (editingEqIndex !== null) {
-        equiposActualizados[editingEqIndex] = { ...equiposActualizados[editingEqIndex], ...datosFormulario };
+        equiposActualizados[editingEqIndex] = { 
+          ...equiposActualizados[editingEqIndex], 
+          ...datosFormulario,
+          // REGLA DE NEGOCIO: Si el admin lo edita (pasa por taller), se "curan" las alertas del técnico automáticamente
+          estadoPresion: 'ok',
+          estadoCarga: 'vigente'
+        };
       } else {
         equiposActualizados.push({ ...datosFormulario, fechaAlta: new Date().toISOString(), historial: [] });
       }
@@ -152,6 +159,7 @@ export default function ClienteDetalle() {
     }
   };
 
+  // ===================== CRUD DUEÑOS =====================
   const handleVincularDueño = async (e) => {
     e.preventDefault();
     try {
@@ -224,7 +232,6 @@ export default function ClienteDetalle() {
 
   const registrosHistoricos = [];
   equipos.forEach(eq => {
-    // Si el equipo ya tiene el array historial nuevo
     if (eq.historial && eq.historial.length > 0) {
       eq.historial.forEach(reg => {
         const [dia, mes, anio] = reg.fecha.split('/');
@@ -234,7 +241,6 @@ export default function ClienteDetalle() {
         }
       });
     } 
-    // Fallback: Si es un equipo viejo que solo tiene la fecha suelta
     else if (eq.fechaControl) {
       const [dia, mes, anio] = eq.fechaControl.split('/');
       const fechaReg = new Date(anio, mes - 1, dia);
@@ -247,7 +253,6 @@ export default function ClienteDetalle() {
     }
   });
 
-  // Ordenamos todo de más nuevo a más viejo
   registrosHistoricos.sort((a, b) => {
     const [d1, m1, a1] = a.fecha.split('/');
     const [d2, m2, a2] = b.fecha.split('/');
@@ -268,7 +273,6 @@ export default function ClienteDetalle() {
           </div>
           <div className="flex gap-2 flex-wrap">
             
-            {/* NUEVO PANEL DE GENERACIÓN DE PDF */}
             <div className="flex border border-ink rounded overflow-hidden bg-white shadow-sm">
               <select 
                 className="px-3 text-[12.5px] font-bold text-ink outline-none cursor-pointer border-none bg-transparent hover:bg-paper transition-colors"
@@ -281,7 +285,7 @@ export default function ClienteDetalle() {
                 <option value={12}>Último año</option>
                 <option value={999}>Todo el historial</option>
               </select>
-              <button onClick={() => window.print()} className="bg-ink text-white px-4 py-2.5 text-[13px] font-bold flex items-center gap-2 cursor-pointer transition-colors hover:bg-black border-l border-ink">
+              <button onClick={() => window.print()} className="bg-ink text-white px-4 py-2.5 text-[13px] font-bold flex items-center gap-2 cursor-pointer transition-colors hover:bg-black border-l border-ink border-t-0 border-r-0 border-b-0">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                 PDF
               </button>
