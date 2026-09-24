@@ -1,46 +1,49 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-// Sumamos getRedirectResult para atrapar la vuelta de Google
-import { signInWithRedirect, getRedirectResult } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { auth, googleProvider } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const navigate = useNavigate();
   const { user, userData } = useAuth(); 
-  
-  // Nuevo estado para mostrar en pantalla qué está pasando por detrás
   const [status, setStatus] = useState("");
 
+  // Atrapa el resultado si el sistema tuvo que usar el plan B (Redirección)
   useEffect(() => {
-    // Atrapa el resultado apenas el navegador vuelve de la página de Google
     getRedirectResult(auth).then((result) => {
-      if (result) setStatus("Google OK. Buscando tu perfil en Trazo...");
+      if (result) setStatus("✅ Acceso concedido. Entrando al sistema...");
     }).catch(error => {
-      setStatus("Error de Google: " + error.message);
+      setStatus("❌ Error al volver de Google: " + error.message);
     });
   }, []);
 
+  // Vigila el estado del usuario para mandarlo a su panel
   useEffect(() => {
     if (user) {
       if (userData) {
-        // Tienen perfil en Firestore, los mandamos a su panel
         if (userData.rol === 'admin' || userData.rol === 'gestor') navigate('/dashboard');
         else if (userData.rol === 'tecnico') navigate('/auditoria');
         else navigate('/mi-local');
       } else {
-        // Logueado en Google, pero no existe en tu base de datos
-        setStatus(`El correo ${user.email} no tiene un rol asignado en la base de datos.`);
+        setStatus(`⚠️ Tu correo (${user.email}) no tiene un rol asignado en la base de datos.`);
       }
     }
   }, [user, userData, navigate]);
 
   const handleGoogleLogin = async () => {
+    setStatus("⏳ Conectando con Google...");
     try {
-      setStatus("Viajando a Google...");
-      await signInWithRedirect(auth, googleProvider);
+      // PLAN A: Intentamos la ventanita primero (La más rápida y estable en Vercel)
+      await signInWithPopup(auth, googleProvider);
     } catch (error) {
-      setStatus("Fallo al redirigir: " + error.message);
+      if (error.code === 'auth/popup-blocked') {
+        // PLAN B: Si el celular se pone terco y bloquea la ventana, forzamos la redirección
+        setStatus("⚠️ Navegador estricto detectado. Usando ruta alternativa...");
+        await signInWithRedirect(auth, googleProvider);
+      } else {
+        setStatus("❌ Error: " + error.message);
+      }
     }
   };
 
@@ -84,9 +87,8 @@ export default function Login() {
           Google
         </button>
 
-        {/* El chismoso visual */}
         {status && (
-          <div className="text-[12px] font-bold text-amber bg-amber-bg p-3 rounded text-center border border-amber">
+          <div className="text-[12px] font-bold text-ink bg-paper p-3 rounded text-center border border-steel">
             {status}
           </div>
         )}
