@@ -13,17 +13,18 @@ export default function ClienteDetalle() {
   const [dueños, setDueños] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Estados de Modales
+  // Estados de Modales y Visor
   const [showEquipoModal, setShowEquipoModal] = useState(false);
   const [showDueñoModal, setShowDueñoModal] = useState(false);
   const [showEditDueñoModal, setShowEditDueñoModal] = useState(false);
+  const [visorImagen, setVisorImagen] = useState(null);
   
   // Formularios
   const [equipoForm, setEquipoForm] = useState({ etiqueta: '', ubicacion: '', tipo: 'ABC', peso: '5kg', vencimiento: '' });
   const [dueñoForm, setDueñoForm] = useState({ nombre: '', email: '', telefono: '' });
   
   const [editingDueño, setEditingDueño] = useState(null);
-  const [editingEqIndex, setEditingEqIndex] = useState(null); // Para saber qué matafuego estamos editando
+  const [editingEqIndex, setEditingEqIndex] = useState(null); 
 
   const fetchClienteData = async () => {
     if (!id) return;
@@ -55,16 +56,10 @@ export default function ClienteDetalle() {
     }
 
     try {
-      // Usamos window.location.origin para que detecte tu dominio (Vercel) automáticamente
       const urlFinal = `${window.location.origin}/nfc/${etiqueta}`;
-      
       const ndef = new window.NDEFReader();
       alert(`⏳ Apoyá el celular sobre el sticker NFC en blanco para grabar el equipo ${etiqueta}...`);
-      
-      await ndef.write({
-        records: [{ recordType: "url", data: urlFinal }]
-      });
-      
+      await ndef.write({ records: [{ recordType: "url", data: urlFinal }] });
       alert(`✅ ¡Sticker grabado exitosamente con la ruta de ${etiqueta}! Ya podés pegarlo en el matafuego.`);
     } catch (error) {
       console.error("Error al grabar NFC:", error);
@@ -87,15 +82,9 @@ export default function ClienteDetalle() {
       };
 
       if (editingEqIndex !== null) {
-        equiposActualizados[editingEqIndex] = {
-          ...equiposActualizados[editingEqIndex],
-          ...datosFormulario
-        };
+        equiposActualizados[editingEqIndex] = { ...equiposActualizados[editingEqIndex], ...datosFormulario };
       } else {
-        equiposActualizados.push({
-          ...datosFormulario,
-          fechaAlta: new Date().toISOString()
-        });
+        equiposActualizados.push({ ...datosFormulario, fechaAlta: new Date().toISOString() });
       }
 
       let fechaMasProxima = null;
@@ -296,13 +285,16 @@ export default function ClienteDetalle() {
                     
                     <td className="px-5 py-4">
                       {eq.fechaControl ? (
-                        <div className="flex flex-col gap-0.5">
+                        <div className="flex flex-col gap-0.5 items-start">
                           <span className="text-[12px] font-bold text-ink">Inspección: {eq.fechaControl}</span>
                           <span className="text-[11px] text-steel-2">Presión: {eq.estadoPresion === 'ok' ? 'Correcta' : 'Baja'}</span>
                           {eq.fotoEvidencia && (
-                            <a href={eq.fotoEvidencia} target="_blank" rel="noreferrer" className="text-[11px] text-[#4285F4] hover:underline font-medium mt-1 inline-flex items-center gap-1">
+                            <button 
+                              onClick={() => setVisorImagen(eq.fotoEvidencia)}
+                              className="text-[11px] text-[#4285F4] hover:underline font-medium mt-1 inline-flex items-center gap-1 cursor-pointer bg-transparent border-none p-0 text-left"
+                            >
                               Ver Evidencia ↗
-                            </a>
+                            </button>
                           )}
                         </div>
                       ) : (
@@ -459,6 +451,24 @@ export default function ClienteDetalle() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* VISOR DE IMÁGENES NATIVO SUPERPUESTO */}
+      {visorImagen && (
+        <div className="fixed inset-0 bg-ink/95 z-[999] flex flex-col items-center justify-center p-4" onClick={() => setVisorImagen(null)}>
+          <button 
+            onClick={() => setVisorImagen(null)} 
+            className="absolute top-6 right-6 text-white bg-white/10 hover:bg-white/20 rounded-full w-10 h-10 flex items-center justify-center text-xl font-bold transition-colors cursor-pointer"
+          >
+            ✕
+          </button>
+          <img 
+            src={visorImagen} 
+            alt="Evidencia del control" 
+            className="max-w-full max-h-[85vh] rounded-lg border border-steel shadow-2xl object-contain" 
+            onClick={(e) => e.stopPropagation()} 
+          />
         </div>
       )}
     </div>

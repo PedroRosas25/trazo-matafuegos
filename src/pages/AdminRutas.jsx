@@ -57,7 +57,7 @@ export default function AdminRutas() {
     try {
       await addDoc(collection(db, "rutas"), {
         empresaId: userData.empresaId,
-        tecnicoId: tecnico.id, // Email del técnico
+        tecnicoId: tecnico.id, 
         tecnicoNombre: tecnico.nombre,
         fecha: new Date().toLocaleDateString('es-AR'),
         estado: 'pendiente',
@@ -72,17 +72,9 @@ export default function AdminRutas() {
     }
   };
 
-  // 2. DRAG & DROP: Iniciar arrastre
-  const handleDragStart = (e, localId) => {
-    e.dataTransfer.setData("localId", localId);
-  };
-
-  // 3. DRAG & DROP: Soltar en la ruta (Actualización Optimista)
-  const handleDropToRoute = async (e, rutaId) => {
-    e.preventDefault();
-    const localId = e.dataTransfer.getData("localId");
-    if (!localId) return;
-
+  // Función unificada para D&D y para el menú desplegable del celular
+  const ejecutarAsignacionLocal = async (rutaId, localId) => {
+    if (!rutaId || !localId) return;
     const local = locales.find(l => l.id === localId);
     const rutaIndex = rutas.findIndex(r => r.id === rutaId);
     
@@ -105,15 +97,26 @@ export default function AdminRutas() {
     setRutas(nuevasRutas);
 
     try {
-      const rutaRef = doc(db, "rutas", rutaId);
-      await updateDoc(rutaRef, { paradas: nuevasRutas[rutaIndex].paradas });
+      await updateDoc(doc(db, "rutas", rutaId), { paradas: nuevasRutas[rutaIndex].paradas });
     } catch (error) {
       console.error("Error al asignar local:", error);
       fetchData(true); 
     }
   };
 
-  // 4. QUITAR LOCAL (Actualización Optimista)
+  // 2. DRAG & DROP: Iniciar arrastre
+  const handleDragStart = (e, localId) => {
+    e.dataTransfer.setData("localId", localId);
+  };
+
+  // 3. DRAG & DROP: Soltar en la ruta
+  const handleDropToRoute = async (e, rutaId) => {
+    e.preventDefault();
+    const localId = e.dataTransfer.getData("localId");
+    ejecutarAsignacionLocal(rutaId, localId);
+  };
+
+  // 4. QUITAR LOCAL 
   const handleQuitarDeRuta = async (rutaId, localId) => {
     const rutaIndex = rutas.findIndex(r => r.id === rutaId);
     const nuevasParadas = rutas[rutaIndex].paradas.filter(p => p.localId !== localId);
@@ -152,7 +155,6 @@ export default function AdminRutas() {
         let localActual = localesPendientes.shift();
         paradasTecnico.push(localActual);
 
-        // Algoritmo: Vecino más cercano
         while (paradasTecnico.length < limitePorTecnico && localesPendientes.length > 0) {
           let indiceMasCercano = 0;
           let distanciaMinima = Infinity;
@@ -200,7 +202,7 @@ export default function AdminRutas() {
     }
   };
 
-  // 6. ELIMINAR RUTA COMPLETA (Actualización Optimista)
+  // 6. ELIMINAR RUTA COMPLETA 
   const handleEliminarRuta = async (rutaId) => {
     if (!window.confirm("¿Eliminar esta ruta completa?")) return;
     
@@ -249,7 +251,7 @@ export default function AdminRutas() {
             <button 
               onClick={handleCrearRutaManual} 
               disabled={procesando}
-              className="px-4 py-2 text-[13px] font-bold bg-paper hover:bg-steel transition-colors text-ink disabled:opacity-50"
+              className="px-4 py-2 text-[13px] font-bold bg-paper hover:bg-steel transition-colors text-ink disabled:opacity-50 cursor-pointer"
             >
               + Crear Ruta Vacía
             </button>
@@ -257,7 +259,7 @@ export default function AdminRutas() {
           <button 
             onClick={handleGenerarRutasAuto} 
             disabled={procesando || pendientes.length === 0 || tecnicos.length === 0}
-            className="btn btn-primary text-[13px] disabled:opacity-50"
+            className="btn btn-primary text-[13px] disabled:opacity-50 cursor-pointer"
           >
             {procesando ? 'Calculando...' : 'Auto-Asignar'}
           </button>
@@ -278,7 +280,7 @@ export default function AdminRutas() {
               {rutas.map(ruta => (
                 <div 
                   key={ruta.id} 
-                  className="card-base p-0 overflow-hidden border-2 border-transparent hover:border-ink hover:border-dashed transition-all"
+                  className="card-base p-0 overflow-hidden border-2 border-transparent hover:border-ink hover:border-dashed transition-all bg-white shadow-sm flex flex-col"
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => handleDropToRoute(e, ruta.id)}
                 >
@@ -287,31 +289,31 @@ export default function AdminRutas() {
                       <div className="font-bold text-[14px] text-ink">{ruta.tecnicoNombre}</div>
                       <div className="text-[12px] text-steel-2">Paradas: {ruta.paradas.length}</div>
                     </div>
-                    <button onClick={() => handleEliminarRuta(ruta.id)} className="text-red text-[11px] uppercase font-bold hover:underline">
+                    <button onClick={() => handleEliminarRuta(ruta.id)} className="text-red text-[11px] uppercase font-bold hover:underline bg-transparent border-none p-0 cursor-pointer">
                       Eliminar Ruta
                     </button>
                   </div>
                   
-                  <div className="p-4 space-y-3 min-h-[60px]">
+                  <div className="p-4 space-y-3 flex-1 min-h-[100px]">
                     {ruta.paradas.length === 0 && (
-                      <div className="text-[12px] text-steel-2 text-center py-2 bg-paper/50 rounded border border-dashed border-steel-2">
-                        Soltá los locales pendientes aquí
+                      <div className="text-[12px] text-steel-2 text-center py-6 bg-paper/50 rounded border border-dashed border-steel-2 h-full flex items-center justify-center pointer-events-none">
+                        Arrastrá locales aquí o asignalos desde el menú
                       </div>
                     )}
                     {ruta.paradas.map((parada, idx) => (
-                      <div key={parada.localId} className="flex justify-between items-center group">
+                      <div key={parada.localId} className="flex justify-between items-center group bg-paper/30 p-2 rounded border border-steel">
                         <div className="flex gap-3 items-start">
-                          <div className="bg-ink text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">
+                          <div className="bg-ink text-white w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">
                             {idx + 1}
                           </div>
                           <div>
                             <div className="text-[13px] font-bold text-ink">{parada.nombre}</div>
-                            <div className="text-[12px] text-steel-2">{parada.direccion}</div>
+                            <div className="text-[11px] text-steel-2 leading-tight">{parada.direccion}</div>
                           </div>
                         </div>
                         <button 
                           onClick={() => handleQuitarDeRuta(ruta.id, parada.localId)}
-                          className="opacity-0 group-hover:opacity-100 text-red text-[11px] font-bold px-2 py-1 bg-red/10 rounded transition-opacity"
+                          className="text-red text-[10px] uppercase font-bold px-2 py-1 bg-white border border-red/30 rounded cursor-pointer hover:bg-red hover:text-white transition-colors"
                         >
                           Quitar
                         </button>
@@ -333,21 +335,57 @@ export default function AdminRutas() {
             {pendientes.length === 0 && (
               <p className="text-[13px] text-steel-2 italic">Flota optimizada. Todos los locales están asignados.</p>
             )}
-            {pendientes.map(local => (
-              <div 
-                key={local.id} 
-                draggable
-                onDragStart={(e) => handleDragStart(e, local.id)}
-                className="border border-steel rounded p-3 bg-white flex justify-between items-center cursor-grab active:cursor-grabbing hover:border-ink hover:shadow-sm transition-all"
-              >
-                <div>
-                  <div className="font-bold text-[13.5px] text-ink">{local.name}</div>
-                  <div className="text-[12px] text-steel-2">
-                    {local.ubi ? '≡ Arrastrar para asignar' : '⚠️ Falta ubicación GPS'}
+            
+            {pendientes.map(local => {
+              // MINIMOTOR DE CÁLCULO
+              const equiposLocal = local.equipos || [];
+              let vig = 0;
+              let rev = 0;
+              const hoy = new Date();
+              
+              equiposLocal.forEach(eq => {
+                const anualOk = eq.vencimiento && new Date(eq.vencimiento) >= hoy;
+                const fisicoOk = eq.estadoPresion !== 'baja' && eq.estadoCarga !== 'vencido';
+                if (anualOk && fisicoOk) vig++; else rev++;
+              });
+
+              return (
+                <div 
+                  key={local.id} 
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, local.id)}
+                  className="border border-steel rounded p-3 bg-white flex flex-col cursor-grab active:cursor-grabbing hover:border-ink hover:shadow-sm transition-all"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <div className="font-bold text-[13.5px] text-ink leading-tight">{local.name}</div>
+                      <div className="text-[11.5px] text-steel-2 mt-0.5">
+                        {local.ubi ? local.addr : '⚠️ Falta ubicación GPS'}
+                      </div>
+                    </div>
+                    
+                    {/* BOTÓN ALTERNATIVO DE CELULARES: SELECTOR DE RUTA */}
+                    {rutas.length > 0 && local.ubi && (
+                      <select 
+                        onChange={(e) => ejecutarAsignacionLocal(e.target.value, local.id)}
+                        className="text-[10px] font-bold uppercase tracking-wider bg-paper border border-steel rounded px-2 py-1.5 outline-none text-ink cursor-pointer w-auto max-w-[120px] shadow-sm hover:border-ink"
+                        defaultValue=""
+                      >
+                        <option value="" disabled>+ ASIGNAR A...</option>
+                        {rutas.map(r => <option key={r.id} value={r.id}>{r.tecnicoNombre}</option>)}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* EL MINI-RESUMEN INYECTADO */}
+                  <div className="flex items-center gap-3 mt-1 pt-2 border-t border-steel border-dashed">
+                    <span className="text-[11px] font-medium text-steel-2">Inventario ({equiposLocal.length}):</span>
+                    <span className="text-[11px] font-bold text-[#2e7d32] bg-green/10 px-1.5 py-0.5 rounded">{vig} en regla</span>
+                    {rev > 0 && <span className="text-[11px] font-bold text-red bg-red/10 px-1.5 py-0.5 rounded">{rev} a revisar</span>}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
