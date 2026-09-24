@@ -204,15 +204,37 @@ export default function AdminRutas() {
 
   // 6. ELIMINAR RUTA COMPLETA 
   const handleEliminarRuta = async (rutaId) => {
-    if (!window.confirm("¿Eliminar esta ruta completa?")) return;
-    
+    if (!window.confirm("¿Eliminar esta ruta completa del tablero?")) return;
     setRutas(rutas.filter(r => r.id !== rutaId)); 
-    
     try {
       await deleteDoc(doc(db, "rutas", rutaId));
     } catch (error) {
       console.error("Error eliminando ruta:", error);
       fetchData(true);
+    }
+  };
+
+  // 7. LIMPIAR RUTAS COMPLETADAS
+  const handleLimpiarCompletadas = async () => {
+    const rutasCompletadas = rutas.filter(r => r.paradas.length > 0 && r.paradas.every(p => p.estado === 'completado'));
+    if (rutasCompletadas.length === 0) return alert("No hay rutas finalizadas para limpiar hoy.");
+    
+    if (!window.confirm(`¿Archivar y borrar ${rutasCompletadas.length} rutas completadas del tablero?`)) return;
+    
+    setProcesando(true);
+    try {
+      const batch = writeBatch(db);
+      rutasCompletadas.forEach(r => {
+        batch.delete(doc(db, "rutas", r.id));
+      });
+      await batch.commit();
+      
+      // Actualizamos UI localmente
+      setRutas(rutas.filter(r => !(r.paradas.length > 0 && r.paradas.every(p => p.estado === 'completado'))));
+    } catch (error) {
+      console.error("Error limpiando rutas:", error);
+    } finally {
+      setProcesando(false);
     }
   };
 
@@ -256,12 +278,21 @@ export default function AdminRutas() {
               + Crear Ruta Vacía
             </button>
           </div>
+          
           <button 
             onClick={handleGenerarRutasAuto} 
             disabled={procesando || pendientes.length === 0 || tecnicos.length === 0}
+            className="btn border border-ink text-ink bg-white text-[13px] disabled:opacity-50 cursor-pointer"
+          >
+            Auto-Asignar
+          </button>
+
+          <button 
+            onClick={handleLimpiarCompletadas} 
+            disabled={procesando}
             className="btn btn-primary text-[13px] disabled:opacity-50 cursor-pointer"
           >
-            {procesando ? 'Calculando...' : 'Auto-Asignar'}
+            Limpiar Terminadas
           </button>
         </div>
       </div>
@@ -277,51 +308,59 @@ export default function AdminRutas() {
             <p className="text-[13px] text-steel-2 italic">Creá una ruta vacía para empezar o usá Auto-Asignar.</p>
           ) : (
             <div className="space-y-4">
-              {rutas.map(ruta => (
-                <div 
-                  key={ruta.id} 
-                  className="card-base p-0 overflow-hidden border-2 border-transparent hover:border-ink hover:border-dashed transition-all bg-white shadow-sm flex flex-col"
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => handleDropToRoute(e, ruta.id)}
-                >
-                  <div className="bg-paper px-4 py-3 border-b border-steel flex justify-between items-center">
-                    <div>
-                      <div className="font-bold text-[14px] text-ink">{ruta.tecnicoNombre}</div>
-                      <div className="text-[12px] text-steel-2">Paradas: {ruta.paradas.length}</div>
-                    </div>
-                    <button onClick={() => handleEliminarRuta(ruta.id)} className="text-red text-[11px] uppercase font-bold hover:underline bg-transparent border-none p-0 cursor-pointer">
-                      Eliminar Ruta
-                    </button>
-                  </div>
-                  
-                  <div className="p-4 space-y-3 flex-1 min-h-[100px]">
-                    {ruta.paradas.length === 0 && (
-                      <div className="text-[12px] text-steel-2 text-center py-6 bg-paper/50 rounded border border-dashed border-steel-2 h-full flex items-center justify-center pointer-events-none">
-                        Arrastrá locales aquí o asignalos desde el menú
-                      </div>
-                    )}
-                    {ruta.paradas.map((parada, idx) => (
-                      <div key={parada.localId} className="flex justify-between items-center group bg-paper/30 p-2 rounded border border-steel">
-                        <div className="flex gap-3 items-start">
-                          <div className="bg-ink text-white w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">
-                            {idx + 1}
-                          </div>
-                          <div>
-                            <div className="text-[13px] font-bold text-ink">{parada.nombre}</div>
-                            <div className="text-[11px] text-steel-2 leading-tight">{parada.direccion}</div>
-                          </div>
+              {rutas.map(ruta => {
+                const esCompletada = ruta.paradas.length > 0 && ruta.paradas.every(p => p.estado === 'completado');
+
+                return (
+                  <div 
+                    key={ruta.id} 
+                    className={`card-base p-0 overflow-hidden border-2 transition-all shadow-sm flex flex-col ${esCompletada ? 'border-green bg-green/5' : 'border-transparent hover:border-ink hover:border-dashed bg-white'}`}
+                    onDragOver={(e) => !esCompletada && e.preventDefault()}
+                    onDrop={(e) => !esCompletada && handleDropToRoute(e, ruta.id)}
+                  >
+                    <div className={`px-4 py-3 border-b flex justify-between items-center ${esCompletada ? 'bg-green text-white border-green' : 'bg-paper border-steel'}`}>
+                      <div>
+                        <div className={`font-bold text-[14px] ${esCompletada ? 'text-white' : 'text-ink'}`}>
+                          {esCompletada ? `✓ TERMINADA: ${ruta.tecnicoNombre}` : ruta.tecnicoNombre}
                         </div>
-                        <button 
-                          onClick={() => handleQuitarDeRuta(ruta.id, parada.localId)}
-                          className="text-red text-[10px] uppercase font-bold px-2 py-1 bg-white border border-red/30 rounded cursor-pointer hover:bg-red hover:text-white transition-colors"
-                        >
-                          Quitar
-                        </button>
+                        <div className={`text-[12px] ${esCompletada ? 'text-white/80' : 'text-steel-2'}`}>Paradas: {ruta.paradas.length}</div>
                       </div>
-                    ))}
+                      <button onClick={() => handleEliminarRuta(ruta.id)} className={`text-[11px] uppercase font-bold hover:underline bg-transparent border-none p-0 cursor-pointer ${esCompletada ? 'text-white' : 'text-red'}`}>
+                        Eliminar Ruta
+                      </button>
+                    </div>
+                    
+                    <div className="p-4 space-y-3 flex-1 min-h-[100px]">
+                      {ruta.paradas.length === 0 && (
+                        <div className="text-[12px] text-steel-2 text-center py-6 bg-paper/50 rounded border border-dashed border-steel-2 h-full flex items-center justify-center pointer-events-none">
+                          Arrastrá locales aquí o asignalos desde el menú
+                        </div>
+                      )}
+                      {ruta.paradas.map((parada, idx) => (
+                        <div key={parada.localId} className={`flex justify-between items-center group p-2 rounded border ${parada.estado === 'completado' ? 'bg-green/10 border-green/30' : 'bg-paper/30 border-steel'}`}>
+                          <div className="flex gap-3 items-start">
+                            <div className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5 ${parada.estado === 'completado' ? 'bg-[#2e7d32] text-white' : 'bg-ink text-white'}`}>
+                              {parada.estado === 'completado' ? '✓' : idx + 1}
+                            </div>
+                            <div>
+                              <div className={`text-[13px] font-bold ${parada.estado === 'completado' ? 'text-[#2e7d32] line-through opacity-70' : 'text-ink'}`}>{parada.nombre}</div>
+                              <div className="text-[11px] text-steel-2 leading-tight">{parada.direccion}</div>
+                            </div>
+                          </div>
+                          {!esCompletada && (
+                            <button 
+                              onClick={() => handleQuitarDeRuta(ruta.id, parada.localId)}
+                              className="text-red text-[10px] uppercase font-bold px-2 py-1 bg-white border border-red/30 rounded cursor-pointer hover:bg-red hover:text-white transition-colors"
+                            >
+                              Quitar
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -337,17 +376,48 @@ export default function AdminRutas() {
             )}
             
             {pendientes.map(local => {
-              // MINIMOTOR DE CÁLCULO
+              // MINIMOTOR DE CÁLCULO (Estado + Tiempo de abandono)
               const equiposLocal = local.equipos || [];
-              let vig = 0;
-              let rev = 0;
+              let vig = 0; let rev = 0; let maxTimestamp = 0;
+              
               const hoy = new Date();
+              hoy.setHours(0,0,0,0);
               
               equiposLocal.forEach(eq => {
                 const anualOk = eq.vencimiento && new Date(eq.vencimiento) >= hoy;
                 const fisicoOk = eq.estadoPresion !== 'baja' && eq.estadoCarga !== 'vencido';
                 if (anualOk && fisicoOk) vig++; else rev++;
+
+                // Buscar la fecha más reciente de control
+                if (eq.fechaControl) {
+                  const [dia, mes, anio] = eq.fechaControl.split('/');
+                  const fechaReg = new Date(anio, mes - 1, dia);
+                  fechaReg.setHours(0,0,0,0);
+                  const ts = fechaReg.getTime();
+                  if (ts > maxTimestamp) maxTimestamp = ts;
+                }
               });
+
+              // Lógica de cronómetro
+              let textoUltimaVisita = "Nunca auditado";
+              let colorUltimaVisita = "text-steel-2 bg-paper";
+
+              if (maxTimestamp > 0) {
+                const diasPasados = Math.floor((hoy.getTime() - maxTimestamp) / (1000 * 60 * 60 * 24));
+                if (diasPasados === 0) textoUltimaVisita = "Auditado hoy";
+                else if (diasPasados === 1) textoUltimaVisita = "Auditado ayer";
+                else if (diasPasados <= 30) textoUltimaVisita = `Hace ${diasPasados} días`;
+                else {
+                  const meses = Math.floor(diasPasados / 30);
+                  textoUltimaVisita = `Hace ${meses} mes${meses > 1 ? 'es' : ''}`;
+                }
+                
+                if (diasPasados > 30 && diasPasados <= 90) colorUltimaVisita = "text-amber bg-amber-bg";
+                if (diasPasados > 90) colorUltimaVisita = "text-red font-bold bg-red/10";
+              }
+
+              // Solo permitimos asignar a rutas que no estén completadas
+              const rutasAsignables = rutas.filter(r => !(r.paradas.length > 0 && r.paradas.every(p => p.estado === 'completado')));
 
               return (
                 <div 
@@ -364,24 +434,28 @@ export default function AdminRutas() {
                       </div>
                     </div>
                     
-                    {/* BOTÓN ALTERNATIVO DE CELULARES: SELECTOR DE RUTA */}
-                    {rutas.length > 0 && local.ubi && (
+                    {rutasAsignables.length > 0 && local.ubi && (
                       <select 
                         onChange={(e) => ejecutarAsignacionLocal(e.target.value, local.id)}
                         className="text-[10px] font-bold uppercase tracking-wider bg-paper border border-steel rounded px-2 py-1.5 outline-none text-ink cursor-pointer w-auto max-w-[120px] shadow-sm hover:border-ink"
                         defaultValue=""
                       >
                         <option value="" disabled>+ ASIGNAR A...</option>
-                        {rutas.map(r => <option key={r.id} value={r.id}>{r.tecnicoNombre}</option>)}
+                        {rutasAsignables.map(r => <option key={r.id} value={r.id}>{r.tecnicoNombre}</option>)}
                       </select>
                     )}
                   </div>
 
-                  {/* EL MINI-RESUMEN INYECTADO */}
-                  <div className="flex items-center gap-3 mt-1 pt-2 border-t border-steel border-dashed">
-                    <span className="text-[11px] font-medium text-steel-2">Inventario ({equiposLocal.length}):</span>
-                    <span className="text-[11px] font-bold text-[#2e7d32] bg-green/10 px-1.5 py-0.5 rounded">{vig} en regla</span>
-                    {rev > 0 && <span className="text-[11px] font-bold text-red bg-red/10 px-1.5 py-0.5 rounded">{rev} a revisar</span>}
+                  {/* EL MINI-RESUMEN INYECTADO Y EL TIEMPO */}
+                  <div className="flex items-center justify-between mt-1 pt-2 border-t border-steel border-dashed">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-[#2e7d32] bg-green/10 px-1.5 py-0.5 rounded">{vig} en regla</span>
+                      {rev > 0 && <span className="text-[11px] font-bold text-red bg-red/10 px-1.5 py-0.5 rounded">{rev} a revisar</span>}
+                    </div>
+                    
+                    <div className={`text-[10px] uppercase tracking-wider px-2 py-1 rounded ${colorUltimaVisita}`}>
+                      ⏱ {textoUltimaVisita}
+                    </div>
                   </div>
                 </div>
               );

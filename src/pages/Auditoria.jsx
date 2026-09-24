@@ -123,12 +123,23 @@ export default function Auditoria() {
       // Actualizamos el array de equipos localmente para Firestore
       const updatedEquipos = activeLocal.equipos.map(eq => {
         if (eq.etiqueta === activeEq.etiqueta) {
+          
+          // 1. Armamos el objeto con la memoria del día de hoy
+          const nuevoRegistro = {
+            fecha: hoy,
+            presion: formState.presion,
+            carga: formState.vencimiento,
+            foto: photoURL
+          };
+
           return { 
             ...eq, 
             fechaControl: hoy,
             fotoEvidencia: photoURL,
             estadoPresion: formState.presion,
-            estadoCarga: formState.vencimiento
+            estadoCarga: formState.vencimiento,
+            // 2. Inyectamos el nuevo registro al historial antiguo
+            historial: [...(eq.historial || []), nuevoRegistro]
           };
         }
         return eq;

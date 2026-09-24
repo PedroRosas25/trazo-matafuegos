@@ -110,12 +110,21 @@ export default function EquipoNFC() {
 
       const updatedEquipos = localPadre.equipos.map(eq => {
         if (eq.etiqueta === equipo.etiqueta) {
+          
+          const nuevoRegistro = {
+            fecha: hoy,
+            presion: formState.presion,
+            carga: formState.vencimiento,
+            foto: photoURL
+          };
+
           return { 
             ...eq, 
             fechaControl: hoy,
             fotoEvidencia: photoURL,
             estadoPresion: formState.presion,
-            estadoCarga: formState.vencimiento
+            estadoCarga: formState.vencimiento,
+            historial: [...(eq.historial || []), nuevoRegistro]
           };
         }
         return eq;
