@@ -20,7 +20,7 @@ export default function Layout() {
     <div className="flex flex-col md:flex-row min-h-screen bg-paper">
       
       {/* Menú (Arriba en celular, Izquierda fija en PC) */}
-      <div className="w-full md:w-[260px] bg-ink text-white flex flex-col md:justify-between p-5 md:fixed md:h-full z-10">
+      <div className="w-full md:w-[260px] bg-ink text-white flex flex-col md:justify-between p-5 md:fixed md:h-full z-10 print:hidden">
         <div>
           <div className="flex items-center gap-2 font-oswald text-xl tracking-wider mb-6 md:mb-8">
             <span className="w-6 h-6 bg-red text-white flex items-center justify-center font-bold rounded-sm">T</span>
@@ -62,7 +62,7 @@ export default function Layout() {
       </div>
 
       {/* Contenido principal (Con margen izquierdo solo en PC) */}
-      <div className="flex-1 w-full md:ml-[260px] p-4 md:p-8">
+      <div className="flex-1 w-full md:ml-[260px] p-4 md:p-8 print:m-0 print:p-0">
         <Outlet />
       </div>
     </div>
