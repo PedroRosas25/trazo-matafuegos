@@ -28,7 +28,7 @@ export default function Auditoria() {
       const q = query(
         collection(db, "rutas"),
         where("empresaId", "==", userData.empresaId),
-        where("tecnicoId", "==", userData.email) // Buscamos por el ID del técnico (su email)
+        where("tecnicoId", "==", userData.email) 
       );
       const snap = await getDocs(q);
       
@@ -60,7 +60,7 @@ export default function Auditoria() {
         setActiveLocal({ 
           id: docSnap.id, 
           ...docSnap.data(),
-          estadoParada: parada.estado // Guardamos el estado para saber si ya la completó
+          estadoParada: parada.estado 
         });
       } else {
         alert("El local fue eliminado del sistema central.");
@@ -74,12 +74,12 @@ export default function Auditoria() {
 
   const handleBack = () => {
     setActiveLocal(null);
-    fetchRuta(); // Refrescamos por si cambió el progreso
+    fetchRuta(); 
   };
 
   // 3. Lógica del Modal de Auditoría
   const handleOpenModal = (eq, isDone) => {
-    if (isDone) return; // Si ya se auditó hoy, no lo dejamos re-auditar
+    if (isDone) return; 
     setActiveEq(eq);
     setFormState({ presion: null, vencimiento: null });
     setImageFile(null);
@@ -98,7 +98,7 @@ export default function Auditoria() {
     if (file) setImageFile(file);
   };
 
-  // 4. Guardar el control en la Base de Datos y subir la foto
+  // 4. Guardar el control en la Base de Datos y subir la foto con Metadatos
   const handleSubmitControl = async () => {
     if (!formState.presion || !formState.vencimiento || !imageFile) {
       alert("⚠️ Por favor, marcá la presión, el vencimiento y sacá una foto obligatoriamente.");
@@ -108,11 +108,18 @@ export default function Auditoria() {
     setUploading(true);
 
     try {
-      // Subimos a Cloudinary usando tu servicio intacto
-      const photoURL = await uploadToCloudinary(imageFile);
+      // a. Armamos la ruta dinámica de carpetas
+      const rutaCarpeta = `Trazo/${userData.empresaId}/${activeLocal.id}`;
+      
+      // b. Armamos el string de metadatos (formato clave=valor separados por pipe '|')
+      const metadata = `extintor=${activeEq.etiqueta}|ubicacion=${activeEq.ubicacion}|local=${activeLocal.name}`;
+      
+      // c. Subimos la foto con ambas variables
+      const photoURL = await uploadToCloudinary(imageFile, rutaCarpeta, metadata);
+      
       const hoy = new Date().toLocaleDateString('es-AR');
 
-      // Actualizamos el array de equipos buscando por la "etiqueta" (creada en el Dashboard)
+      // Actualizamos el array de equipos localmente para Firestore
       const updatedEquipos = activeLocal.equipos.map(eq => {
         if (eq.etiqueta === activeEq.etiqueta) {
           return { 
@@ -129,7 +136,6 @@ export default function Auditoria() {
       // Guardamos en Firestore
       await updateDoc(doc(db, "locales", activeLocal.id), { equipos: updatedEquipos });
       
-      // Actualizamos la vista localmente
       setActiveLocal({ ...activeLocal, equipos: updatedEquipos });
       handleCloseModal();
       
@@ -141,7 +147,7 @@ export default function Auditoria() {
     }
   };
 
-  // 5. Finalizar Visita (Avisa al Gestor que el local está listo)
+  // 5. Finalizar Visita 
   const handleFinalizarVisita = async () => {
     try {
       setLoading(true);
@@ -234,7 +240,7 @@ export default function Auditoria() {
                 <p className="text-[13px] text-steel-2 text-center py-4">Este cliente aún no tiene matafuegos registrados en el sistema.</p>
               ) : (
                 activeLocal.equipos.map((eq, idx) => {
-                  const isDone = eq.fechaControl === hoy; // Si la fecha de control es de hoy, ya se hizo
+                  const isDone = eq.fechaControl === hoy;
                   
                   return (
                     <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between py-4 border-b border-steel last:border-b-0 gap-3">
@@ -271,7 +277,7 @@ export default function Auditoria() {
         </div>
       )}
 
-      {/* MODAL DE AUDITORÍA (Intacto pero conectado a campos reales) */}
+      {/* MODAL DE AUDITORÍA */}
       {showModal && activeEq && (
         <div className="fixed inset-0 bg-ink/70 z-50 flex items-center justify-center p-5">
           <div className="bg-white rounded max-w-[380px] w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">

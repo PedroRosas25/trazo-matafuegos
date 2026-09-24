@@ -1,21 +1,23 @@
-export const uploadToCloudinary = async (file) => {
+export const uploadToCloudinary = async (file, folderPath = 'Trazo/General', metadatos = '') => {
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append('file', file);
+  formData.append('upload_preset', 'trazo_evidencia'); // Recordá mantener el tuyo
+  formData.append('folder', folderPath);
   
-  // Acá va exactamente el nombre que creaste
-  formData.append("upload_preset", "trazo_evidencia"); 
-  
-  // Acordate de reemplazar ACA_VA_TU_CLOUD_NAME por el tuyo real
-  const response = await fetch(
-    `https://api.cloudinary.com/v1_1/r98hvvpf/image/upload`,
-    {
-      method: "POST",
-      body: formData,
-    }
-  );
+  // Si le mandamos metadatos, los inyecta en la foto
+  if (metadatos) {
+    formData.append('context', metadatos);
+  }
 
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error?.message || "Error al subir imagen");
-  
-  return data.secure_url; 
+  try {
+    const res = await fetch('https://api.cloudinary.com/v1_1/r98hvvpf/image/upload', { // Recordá mantener tu cloud_name
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    return data.secure_url;
+  } catch (error) {
+    console.error('Error subiendo a Cloudinary:', error);
+    throw error;
+  }
 };
