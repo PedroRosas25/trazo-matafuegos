@@ -108,16 +108,17 @@ export default function Auditoria() {
     setUploading(true);
 
     try {
+      // Definimos la fecha antes de subir la foto para incluirla en los metadatos
+      const hoy = new Date().toLocaleDateString('es-AR');
+
       // a. Armamos la ruta dinámica de carpetas
       const rutaCarpeta = `Trazo/${userData.empresaId}/${activeLocal.id}`;
       
-      // b. Armamos el string de metadatos (formato clave=valor separados por pipe '|')
-      const metadata = `extintor=${activeEq.etiqueta}|ubicacion=${activeEq.ubicacion}|local=${activeLocal.name}`;
+      // b. Armamos el string de metadatos (ahora con la fecha incluida)
+      const metadata = `extintor=${activeEq.etiqueta}|ubicacion=${activeEq.ubicacion}|local=${activeLocal.name}|fecha=${hoy}`;
       
-      // c. Subimos la foto con ambas variables
+      // c. Subimos la foto con todas las variables
       const photoURL = await uploadToCloudinary(imageFile, rutaCarpeta, metadata);
-      
-      const hoy = new Date().toLocaleDateString('es-AR');
 
       // Actualizamos el array de equipos localmente para Firestore
       const updatedEquipos = activeLocal.equipos.map(eq => {
