@@ -19,6 +19,9 @@ export default function ClienteDetalle() {
   const [showEditDueñoModal, setShowEditDueñoModal] = useState(false);
   const [visorImagen, setVisorImagen] = useState(null);
   
+  // Estado para el filtro del PDF
+  const [mesesFiltro, setMesesFiltro] = useState(12);
+
   // Formularios
   const [equipoForm, setEquipoForm] = useState({ etiqueta: '', ubicacion: '', tipo: 'ABC', peso: '5kg', vencimiento: '' });
   const [dueñoForm, setDueñoForm] = useState({ nombre: '', email: '', telefono: '' });
@@ -48,7 +51,6 @@ export default function ClienteDetalle() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // ===================== GRABADOR NFC =====================
   const handleGrabarNFC = async (etiqueta) => {
     if (!('NDEFReader' in window)) {
       alert("❌ Tu navegador no soporta grabar chips NFC. Usá Google Chrome en un celular Android.");
@@ -67,7 +69,6 @@ export default function ClienteDetalle() {
     }
   };
 
-  // ===================== CRUD MATAFUEGOS =====================
   const handleAddEquipo = async (e) => {
     e.preventDefault();
     try {
@@ -84,7 +85,7 @@ export default function ClienteDetalle() {
       if (editingEqIndex !== null) {
         equiposActualizados[editingEqIndex] = { ...equiposActualizados[editingEqIndex], ...datosFormulario };
       } else {
-        equiposActualizados.push({ ...datosFormulario, fechaAlta: new Date().toISOString() });
+        equiposActualizados.push({ ...datosFormulario, fechaAlta: new Date().toISOString(), historial: [] });
       }
 
       let fechaMasProxima = null;
@@ -151,7 +152,6 @@ export default function ClienteDetalle() {
     }
   };
 
-  // ===================== CRUD DUEÑOS =====================
   const handleVincularDueño = async (e) => {
     e.preventDefault();
     try {
@@ -216,11 +216,46 @@ export default function ClienteDetalle() {
     else vencidos++;
   });
 
+  // ==========================================
+  // MOTOR DE CÁLCULO HISTÓRICO PARA EL PDF
+  // ==========================================
+  const fechaLimite = new Date();
+  fechaLimite.setMonth(fechaLimite.getMonth() - mesesFiltro);
+
+  const registrosHistoricos = [];
+  equipos.forEach(eq => {
+    // Si el equipo ya tiene el array historial nuevo
+    if (eq.historial && eq.historial.length > 0) {
+      eq.historial.forEach(reg => {
+        const [dia, mes, anio] = reg.fecha.split('/');
+        const fechaReg = new Date(anio, mes - 1, dia);
+        if (fechaReg >= fechaLimite || mesesFiltro === 999) {
+          registrosHistoricos.push({ ...reg, etiqueta: eq.etiqueta, ubicacion: eq.ubicacion, tipo: eq.tipo });
+        }
+      });
+    } 
+    // Fallback: Si es un equipo viejo que solo tiene la fecha suelta
+    else if (eq.fechaControl) {
+      const [dia, mes, anio] = eq.fechaControl.split('/');
+      const fechaReg = new Date(anio, mes - 1, dia);
+      if (fechaReg >= fechaLimite || mesesFiltro === 999) {
+        registrosHistoricos.push({
+          fecha: eq.fechaControl, presion: eq.estadoPresion, carga: eq.estadoCarga, foto: eq.fotoEvidencia,
+          etiqueta: eq.etiqueta, ubicacion: eq.ubicacion, tipo: eq.tipo
+        });
+      }
+    }
+  });
+
+  // Ordenamos todo de más nuevo a más viejo
+  registrosHistoricos.sort((a, b) => {
+    const [d1, m1, a1] = a.fecha.split('/');
+    const [d2, m2, a2] = b.fecha.split('/');
+    return new Date(a2, m2-1, d2) - new Date(a1, m1-1, d1);
+  });
+
   return (
     <>
-      {/* ========================================================= */}
-      {/* VISTA NORMAL DE LA APLICACIÓN (Se oculta al imprimir) */}
-      {/* ========================================================= */}
       <div className="pb-20 font-sans print:hidden">
         <button onClick={() => navigate('/dashboard')} className="text-steel-2 text-[13px] hover:text-ink mb-6 flex items-center gap-2 font-medium bg-transparent border-none p-0 cursor-pointer">
           <span className="text-lg leading-none">&lsaquo;</span> Volver al Panel
@@ -231,12 +266,27 @@ export default function ClienteDetalle() {
             <h1 className="text-[24px] text-ink font-oswald uppercase tracking-wide font-semibold m-0">{local.name}</h1>
             <p className="text-steel-2 text-[14px] mt-1">{local.addr} {local.zona ? `· Zona ${local.zona}` : ''}</p>
           </div>
-          <div className="flex gap-2">
-            {/* NUEVO BOTÓN PARA PDF */}
-            <button onClick={() => window.print()} className="btn border border-ink text-ink bg-white px-5 py-2.5 text-[13px] font-bold flex items-center gap-2 cursor-pointer hover:bg-paper">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-              Generar Reporte PDF
-            </button>
+          <div className="flex gap-2 flex-wrap">
+            
+            {/* NUEVO PANEL DE GENERACIÓN DE PDF */}
+            <div className="flex border border-ink rounded overflow-hidden bg-white shadow-sm">
+              <select 
+                className="px-3 text-[12.5px] font-bold text-ink outline-none cursor-pointer border-none bg-transparent hover:bg-paper transition-colors"
+                value={mesesFiltro}
+                onChange={(e) => setMesesFiltro(Number(e.target.value))}
+              >
+                <option value={1}>Último mes</option>
+                <option value={3}>Últimos 3 meses</option>
+                <option value={6}>Últimos 6 meses</option>
+                <option value={12}>Último año</option>
+                <option value={999}>Todo el historial</option>
+              </select>
+              <button onClick={() => window.print()} className="bg-ink text-white px-4 py-2.5 text-[13px] font-bold flex items-center gap-2 cursor-pointer transition-colors hover:bg-black border-l border-ink">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                PDF
+              </button>
+            </div>
+            
             <button onClick={() => setShowEquipoModal(true)} className="btn btn-ink px-5 py-2.5 text-[13px] font-bold">
               + Añadir Matafuego
             </button>
@@ -485,92 +535,92 @@ export default function ClienteDetalle() {
       </div>
 
       {/* ========================================================= */}
-      {/* VISTA EXCLUSIVA PARA EL PDF (Solo visible al imprimir) */}
+      {/* VISTA EXCLUSIVA PARA EL PDF (BITÁCORA HISTÓRICA) */}
       {/* ========================================================= */}
       <div className="hidden print:block bg-white text-black font-sans p-2">
-        {/* Encabezado del Certificado */}
         <div className="flex justify-between items-end border-b-2 border-black pb-4 mb-8">
           <div>
             <div className="flex items-center gap-2 font-oswald text-2xl tracking-wider mb-2">
               <span className="w-8 h-8 bg-red text-white flex items-center justify-center font-bold rounded-sm" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>T</span>
               TRAZO
             </div>
-            <p className="text-[12px] text-gray-500 uppercase tracking-widest">Auditoría Operativa de Seguridad</p>
+            <p className="text-[12px] text-gray-500 uppercase tracking-widest">
+              Reporte Histórico de Operaciones
+            </p>
           </div>
           <div className="text-right">
-            <h2 className="text-xl font-bold uppercase mb-1">Certificado de Estado</h2>
-            <p className="text-sm font-mono text-gray-600">Emisión: {new Date().toLocaleDateString('es-AR')} a las {new Date().toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'})}</p>
+            <h2 className="text-xl font-bold uppercase mb-1">Bitácora de Auditorías</h2>
+            <p className="text-sm font-mono text-gray-600">
+              Período: {mesesFiltro === 999 ? 'Todo el historial' : `Últimos ${mesesFiltro} meses`}
+            </p>
+            <p className="text-xs font-mono text-gray-500 mt-1">Emisión: {new Date().toLocaleDateString('es-AR')}</p>
           </div>
         </div>
 
-        {/* Datos del Cliente */}
         <div className="mb-8 bg-gray-100 p-4 rounded-md border border-gray-300" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-          <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-2">Información del Establecimiento</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-2">Establecimiento Auditado</h3>
           <p className="text-xl font-bold font-oswald uppercase">{local.name}</p>
           <p className="text-sm mt-1">Dirección: {local.addr} {local.zona ? `(Zona ${local.zona})` : ''}</p>
-          <p className="text-sm mt-1">Identificador Único: <span className="font-mono text-xs">{local.id}</span></p>
         </div>
 
-        {/* Tabla de Equipos para el PDF */}
-        <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-4 border-b border-gray-300 pb-2">Inventario Físico Declarado ({equipos.length} equipos)</h3>
-        <table className="w-full text-[12px] text-left border-collapse mb-12">
-          <thead>
-            <tr className="border-b-2 border-black">
-              <th className="py-2 px-2 font-bold uppercase">Etiqueta NFC</th>
-              <th className="py-2 px-2 font-bold uppercase">Ubicación y Tipo</th>
-              <th className="py-2 px-2 font-bold uppercase text-center">Vencimiento Anual</th>
-              <th className="py-2 px-2 font-bold uppercase text-center">Último Control</th>
-              <th className="py-2 px-2 font-bold uppercase text-center">Evidencia Fotográfica</th>
-            </tr>
-          </thead>
-          <tbody>
-            {equipos.map((eq, idx) => {
-              const fechaVenc = eq.vencimiento ? new Date(eq.vencimiento).toLocaleDateString('es-AR', { timeZone: 'UTC' }) : '-';
-              return (
+        <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-4 border-b border-gray-300 pb-2">
+          Registro temporal de eventos ({registrosHistoricos.length} auditorías encontradas)
+        </h3>
+        
+        {registrosHistoricos.length === 0 ? (
+          <p className="text-sm text-gray-500 italic p-4 text-center border border-gray-300 border-dashed">
+            No se registran auditorías de campo en el período seleccionado.
+          </p>
+        ) : (
+          <table className="w-full text-[12px] text-left border-collapse mb-12">
+            <thead>
+              <tr className="border-b-2 border-black">
+                <th className="py-2 px-2 font-bold uppercase">Fecha del Evento</th>
+                <th className="py-2 px-2 font-bold uppercase">Identificación (NFC)</th>
+                <th className="py-2 px-2 font-bold uppercase">Ubicación y Equipo</th>
+                <th className="py-2 px-2 font-bold uppercase text-center">Estado Verificado</th>
+                <th className="py-2 px-2 font-bold uppercase text-center">Evidencia Física</th>
+              </tr>
+            </thead>
+            <tbody>
+              {registrosHistoricos.map((reg, idx) => (
                 <tr key={idx} className="border-b border-gray-300">
-                  <td className="py-4 px-2 font-mono font-bold text-sm">{eq.etiqueta}</td>
+                  <td className="py-4 px-2 font-mono font-bold">{reg.fecha}</td>
+                  <td className="py-4 px-2 font-mono">{reg.etiqueta}</td>
                   <td className="py-4 px-2">
-                    <span className="font-bold">{eq.ubicacion}</span><br/>
-                    <span className="text-gray-600">{eq.tipo} ({eq.peso})</span>
+                    <span className="font-bold">{reg.ubicacion}</span><br/>
+                    <span className="text-gray-600">{reg.tipo}</span>
                   </td>
-                  <td className="py-4 px-2 text-center font-medium">{fechaVenc}</td>
                   <td className="py-4 px-2 text-center">
-                    {eq.fechaControl ? (
-                      <>
-                        <div className="font-bold">{eq.fechaControl}</div>
-                        <div className="text-[10px] uppercase">{eq.estadoPresion === 'ok' ? 'Presión Correcta' : 'Presión Baja'}</div>
-                      </>
-                    ) : (
-                      <span className="text-gray-400 italic">Sin datos</span>
-                    )}
+                    <div className="font-bold uppercase text-[10px]">{reg.presion === 'ok' ? 'Presión Correcta' : 'Presión Baja'}</div>
+                    <div className="uppercase text-[10px] text-gray-600 mt-0.5">{reg.carga === 'vigente' ? 'Carga Vigente' : 'Polvo Vencido'}</div>
                   </td>
                   <td className="py-4 px-2 flex justify-center">
-                    {eq.fotoEvidencia ? (
-                      <img src={eq.fotoEvidencia} alt="Control" className="w-16 h-16 object-cover rounded border border-gray-400" />
+                    {reg.foto ? (
+                      <img src={reg.foto} alt="Evidencia" className="w-16 h-16 object-cover rounded border border-gray-400" />
                     ) : (
                       <div className="w-16 h-16 bg-gray-100 border border-gray-300 flex items-center justify-center text-[9px] text-center text-gray-400" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>Sin Foto</div>
                     )}
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        )}
 
-        {/* Firmas y Declaración Jurada */}
         <div className="text-[11px] text-gray-600 text-justify mb-16">
-          <p><strong>DECLARACIÓN JURADA:</strong> El presente documento certifica el estado operativo de los elementos de seguridad contra incendios listados arriba, según la última auditoría de campo realizada mediante la validación física de etiquetas NFC. Las fotografías adjuntas fueron capturadas en tiempo real por personal técnico autorizado y subidas directamente a los servidores de Trazo, garantizando su inmutabilidad.</p>
+          <p><strong>DECLARACIÓN DE INTEGRIDAD:</strong> Este documento conforma la bitácora histórica oficial de operaciones y mantenimiento. Cada evento listado ha sido verificado presencialmente mediante el escaneo de etiquetas de campo de proximidad (NFC). Las fotografías adjuntas son inmutables y se encuentran respaldadas en los servidores de Trazo con su respectiva estampa de metadatos.</p>
         </div>
 
-        <div className="flex justify-between items-end px-12">
+        <div className="flex justify-between items-end px-12 mt-20">
           <div className="text-center w-48">
             <div className="border-b border-black mb-2 h-16"></div>
-            <p className="text-xs font-bold uppercase">Firma del Técnico Responsable</p>
-            <p className="text-[10px] text-gray-500">Aclaración y DNI</p>
+            <p className="text-xs font-bold uppercase">Auditor Responsable</p>
+            <p className="text-[10px] text-gray-500">Firma y Aclaración</p>
           </div>
           <div className="text-center w-48">
             <div className="border-b border-black mb-2 h-16"></div>
-            <p className="text-xs font-bold uppercase">Conformidad del Cliente</p>
+            <p className="text-xs font-bold uppercase">Representante del Establecimiento</p>
             <p className="text-[10px] text-gray-500">Firma, Aclaración y Sello</p>
           </div>
         </div>
