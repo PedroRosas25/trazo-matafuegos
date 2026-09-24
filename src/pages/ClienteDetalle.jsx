@@ -47,6 +47,31 @@ export default function ClienteDetalle() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // ===================== GRABADOR NFC =====================
+  const handleGrabarNFC = async (etiqueta) => {
+    if (!('NDEFReader' in window)) {
+      alert("❌ Tu navegador no soporta grabar chips NFC. Usá Google Chrome en un celular Android.");
+      return;
+    }
+
+    try {
+      // Usamos window.location.origin para que detecte tu dominio (Vercel) automáticamente
+      const urlFinal = `${window.location.origin}/nfc/${etiqueta}`;
+      
+      const ndef = new window.NDEFReader();
+      alert(`⏳ Apoyá el celular sobre el sticker NFC en blanco para grabar el equipo ${etiqueta}...`);
+      
+      await ndef.write({
+        records: [{ recordType: "url", data: urlFinal }]
+      });
+      
+      alert(`✅ ¡Sticker grabado exitosamente con la ruta de ${etiqueta}! Ya podés pegarlo en el matafuego.`);
+    } catch (error) {
+      console.error("Error al grabar NFC:", error);
+      alert("❌ Error al grabar. Mantené el celular quieto sobre el chip hasta que confirme.");
+    }
+  };
+
   // ===================== CRUD MATAFUEGOS =====================
   const handleAddEquipo = async (e) => {
     e.preventDefault();
@@ -62,20 +87,17 @@ export default function ClienteDetalle() {
       };
 
       if (editingEqIndex !== null) {
-        // Actualizamos conservando los datos del técnico (fechaControl, foto, etc)
         equiposActualizados[editingEqIndex] = {
           ...equiposActualizados[editingEqIndex],
           ...datosFormulario
         };
       } else {
-        // Creamos uno nuevo
         equiposActualizados.push({
           ...datosFormulario,
           fechaAlta: new Date().toISOString()
         });
       }
 
-      // Calculamos la alerta general del local
       let fechaMasProxima = null;
       equiposActualizados.forEach(eq => {
         if (eq.vencimiento) {
@@ -119,7 +141,7 @@ export default function ClienteDetalle() {
     if(!window.confirm("¿Dar de baja este matafuego definitivamente?")) return;
     try {
       let equiposActualizados = [...(local.equipos || [])];
-      equiposActualizados.splice(editingEqIndex, 1); // Lo quitamos del arreglo
+      equiposActualizados.splice(editingEqIndex, 1); 
 
       let fechaMasProxima = null;
       equiposActualizados.forEach(eq => {
@@ -201,7 +223,6 @@ export default function ClienteDetalle() {
   let vencidos = 0;
 
   equipos.forEach(eq => {
-    // Calculo matemático basado en la carga
     if (eq.vencimiento && new Date(eq.vencimiento) >= hoy) vigentes++;
     else vencidos++;
   });
@@ -264,7 +285,6 @@ export default function ClienteDetalle() {
                 if (!esVigente) {
                   estadoPill = { label: 'Carga Vencida', bg: 'bg-red/10', text: 'text-red' };
                 } else if (eq.estadoPresion === 'baja' || eq.estadoCarga === 'vencido') {
-                  // Si el vencimiento anual está bien, pero el técnico alertó baja presión
                   estadoPill = { label: 'Mantenimiento', bg: 'bg-amber-bg', text: 'text-amber' }; 
                 }
                 
@@ -274,7 +294,6 @@ export default function ClienteDetalle() {
                     <td className="px-5 py-4 text-steel-2 text-[12.5px]">{eq.ubicacion}<br/>{eq.tipo} ({eq.peso})</td>
                     <td className="px-5 py-4 text-ink font-medium">{fechaFormat}</td>
                     
-                    {/* NUEVA COLUMNA: REPORTE DEL TÉCNICO */}
                     <td className="px-5 py-4">
                       {eq.fechaControl ? (
                         <div className="flex flex-col gap-0.5">
@@ -294,8 +313,17 @@ export default function ClienteDetalle() {
                     <td className="px-5 py-4">
                       <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${estadoPill.bg} ${estadoPill.text}`}>{estadoPill.label}</span>
                     </td>
-                    <td className="px-5 py-4 text-right">
-                      <button onClick={() => handleEditEquipoClick(eq, idx)} className="opacity-0 group-hover:opacity-100 text-[10px] uppercase font-bold text-steel-2 hover:text-ink transition-all px-2 py-1 bg-white border border-steel rounded">
+                    <td className="px-5 py-4 text-right flex flex-col gap-1 items-end">
+                      <button 
+                        onClick={() => handleGrabarNFC(eq.etiqueta)} 
+                        className="text-[10px] uppercase font-bold text-white bg-ink hover:bg-black transition-colors px-2 py-1 rounded w-[90px] text-center"
+                      >
+                        Grabar NFC
+                      </button>
+                      <button 
+                        onClick={() => handleEditEquipoClick(eq, idx)} 
+                        className="text-[10px] uppercase font-bold text-steel-2 hover:text-ink transition-all px-2 py-1 bg-white border border-steel rounded w-[90px] text-center"
+                      >
                         Editar
                       </button>
                     </td>
