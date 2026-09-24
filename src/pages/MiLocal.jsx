@@ -7,10 +7,12 @@ export default function MiLocal() {
   const { userData } = useAuth();
   const [local, setLocal] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Nuevo estado para el visor de fotos
+  const [visorImagen, setVisorImagen] = useState(null);
 
   useEffect(() => {
     const fetchLocal = async () => {
-      // Usamos el localId que quedó pegado al perfil del usuario cuando el Admin lo vinculó
       if (!userData?.localId) return; 
       
       try {
@@ -101,13 +103,16 @@ export default function MiLocal() {
                     
                     <td className="px-5 py-4">
                       {eq.fechaControl ? (
-                        <div className="flex flex-col gap-0.5">
+                        <div className="flex flex-col gap-0.5 items-start">
                           <span className="text-[12px] font-bold text-ink">{eq.fechaControl}</span>
                           <span className="text-[11px] text-steel-2">Presión: {eq.estadoPresion === 'ok' ? 'Correcta' : 'Baja'}</span>
                           {eq.fotoEvidencia && (
-                            <a href={eq.fotoEvidencia} target="_blank" rel="noreferrer" className="text-[11px] text-[#4285F4] hover:underline font-medium mt-1 inline-flex items-center gap-1">
+                            <button 
+                              onClick={() => setVisorImagen(eq.fotoEvidencia)}
+                              className="text-[11px] text-[#4285F4] hover:underline font-medium mt-1 inline-flex items-center gap-1 cursor-pointer bg-transparent border-none p-0 text-left"
+                            >
                               Ver Evidencia fotográfica ↗
-                            </a>
+                            </button>
                           )}
                         </div>
                       ) : (
@@ -132,6 +137,24 @@ export default function MiLocal() {
       <div className="mt-8 text-center">
         <p className="text-[12px] text-steel-2">Reporte generado en tiempo real por el sistema operativo de Trazo.</p>
       </div>
+
+      {/* VISOR DE IMÁGENES NATIVO SUPERPUESTO */}
+      {visorImagen && (
+        <div className="fixed inset-0 bg-ink/95 z-[999] flex flex-col items-center justify-center p-4" onClick={() => setVisorImagen(null)}>
+          <button 
+            onClick={() => setVisorImagen(null)} 
+            className="absolute top-6 right-6 text-white bg-white/10 hover:bg-white/20 rounded-full w-10 h-10 flex items-center justify-center text-xl font-bold transition-colors cursor-pointer border-none"
+          >
+            ✕
+          </button>
+          <img 
+            src={visorImagen} 
+            alt="Evidencia del control" 
+            className="max-w-full max-h-[85vh] rounded-lg border border-steel shadow-2xl object-contain" 
+            onClick={(e) => e.stopPropagation()} 
+          />
+        </div>
+      )}
     </div>
   );
 }
