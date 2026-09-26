@@ -31,7 +31,7 @@ export default function Layout() {
             <div>
               <div className="font-semibold text-[14px]">{userData?.nombre}</div>
               <div className="text-[10px] text-red uppercase tracking-wider font-bold mt-1">
-                {userData?.rol === 'admin' ? 'Administrador' : userData?.rol === 'tecnico' ? 'Técnico' : 'Cliente'}
+                {userData?.rol === 'superadmin' ? 'Dueño del Sistema' : userData?.rol === 'admin' ? 'Administrador' : userData?.rol === 'tecnico' ? 'Técnico' : 'Cliente'}
               </div>
             </div>
             
@@ -43,6 +43,14 @@ export default function Layout() {
 
           {/* Navegación horizontal en celular, vertical en PC */}
           <nav className="flex flex-row md:flex-col gap-5 overflow-x-auto pb-2 md:pb-0 hide-scrollbar border-t border-[#2A343A] md:border-0 pt-4 md:pt-0">
+            
+            {/* 👑 BOTÓN VIP SUPERADMIN (Solo visible para Creadores) */}
+            {userData?.rol === 'superadmin' && (
+              <button onClick={() => navigate('/master-panel')} className="text-left text-sm text-red hover:text-white transition-colors whitespace-nowrap font-bold flex items-center gap-2">
+                <span>⚡</span> Master Panel
+              </button>
+            )}
+
             {userData?.rol === 'admin' && (
               <button onClick={() => navigate('/dashboard')} className="text-left text-sm text-steel-2 hover:text-white transition-colors whitespace-nowrap">Panel General</button>
             )}

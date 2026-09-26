@@ -10,6 +10,9 @@ import MiLocal from './pages/MiLocal';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRutas from './pages/AdminRutas';
 
+// Importamos tu nueva consola de mando secreta
+import MasterPanel from './pages/MasterPanel'; 
+
 function App() {
   return (
     <AuthProvider>
@@ -20,6 +23,13 @@ function App() {
 
           {/* 📦 RUTAS CON MENÚ LATERAL (LAYOUT) */}
           <Route element={<Layout />}>
+            
+            {/* 👑 ZONA DIOS (SaaS Backoffice - Exclusivo Creadores) */}
+            <Route path="/master-panel" element={
+              <ProtectedRoute allowedRoles={['superadmin']}>
+                <MasterPanel />
+              </ProtectedRoute>
+            } />
             
             {/* 🔒 ZONA ADMINISTRADOR (Gestor Logístico) */}
             <Route path="/dashboard" element={

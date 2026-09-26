@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 export default function ProtectedRoute({ children, allowedRoles }) {
   const { userData, loading } = useAuth();
 
-  // 1. Mientras Firebase comprueba quién es, mostramos pantalla de carga
+  // 1. Pantalla de carga mientras lee el contexto
   if (loading) {
     return (
       <div className="min-h-screen bg-paper flex items-center justify-center">
@@ -13,22 +13,25 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     );
   }
 
-  // 2. Si un intruso intenta entrar sin haber iniciado sesión, lo pateamos al Login
+  // 2. Intrusos al login
   if (!userData) {
     return <Navigate to="/" replace />;
   }
 
-  // 3. Si el usuario está logueado pero intenta entrar a una pantalla prohibida para su rol:
+  // 3. Redirección inteligente si alguien intenta entrar donde no debe
   if (allowedRoles && !allowedRoles.includes(userData.rol)) {
-    // Lo redirigimos inteligentemente a su propia pantalla de inicio
+    
+    // Si sos vos (superadmin) y tipeaste mal la URL, te lleva a tu panel maestro
+    if (userData.rol === 'superadmin') return <Navigate to="/master-panel" replace />;
+    
+    // Redirecciones normales para el resto de mortales
     if (userData.rol === 'admin') return <Navigate to="/dashboard" replace />;
     if (userData.rol === 'tecnico') return <Navigate to="/auditoria" replace />;
     if (userData.rol === 'local') return <Navigate to="/mi-local" replace />;
     
-    // Fallback por si acaso
     return <Navigate to="/" replace />;
   }
 
-  // 4. Si pasó todos los controles de seguridad, le permitimos ver la pantalla
+  // 4. Aprobado
   return children;
 }
