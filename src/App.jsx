@@ -6,7 +6,7 @@ import Auditoria from './pages/Auditoria';
 import EquipoNFC from './pages/EquipoNFC';
 import Dashboard from './pages/Dashboard';
 import ClienteDetalle from './pages/ClienteDetalle';
-import MiLocal from './pages/MiLocal'; // Importamos la vista del cliente
+import MiLocal from './pages/MiLocal';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRutas from './pages/AdminRutas';
 
@@ -15,31 +15,52 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          {/* 🟢 ZONA PÚBLICA */}
           <Route path="/" element={<Login />} />
 
+          {/* 📦 RUTAS CON MENÚ LATERAL (LAYOUT) */}
           <Route element={<Layout />}>
             
-            {/* 🔒 ZONA ADMINISTRADOR */}
-            <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/cliente/:id" element={<ClienteDetalle />} />
-              <Route path="/admin-rutas" element={<AdminRutas />} />
-            </Route>
+            {/* 🔒 ZONA ADMINISTRADOR (Gestor Logístico) */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/cliente/:id" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <ClienteDetalle />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin-rutas" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminRutas />
+              </ProtectedRoute>
+            } />
 
-            {/* 🔒 ZONA TÉCNICO */}
-            <Route element={<ProtectedRoute allowedRoles={['tecnico', 'admin']} />}>
-              <Route path="/auditoria" element={<Auditoria />} />
-            </Route>
+            {/* 🔒 ZONA TÉCNICO (Y Admin, para pruebas) */}
+            <Route path="/auditoria" element={
+              <ProtectedRoute allowedRoles={['tecnico', 'admin']}>
+                <Auditoria />
+              </ProtectedRoute>
+            } />
 
-            {/* 🔒 ZONA CLIENTE (DUEÑO DEL LOCAL) */}
-            <Route element={<ProtectedRoute allowedRoles={['local']} />}>
-              <Route path="/mi-local" element={<MiLocal />} />
-            </Route>
+            {/* 🔒 ZONA CLIENTE (Dueño del local) */}
+            <Route path="/mi-local" element={
+              <ProtectedRoute allowedRoles={['local']}>
+                <MiLocal />
+              </ProtectedRoute>
+            } />
 
           </Route>
           
-          {/* 🟢 ZONA PÚBLICA (NFC) */}
-          <Route path="/equipo/:id" element={<EquipoNFC />} />
+          {/* 🔒 ZONA ESCÁNER NFC (Sin menú lateral, usa pantalla completa) */}
+          <Route path="/nfc/:id" element={
+            <ProtectedRoute allowedRoles={['tecnico', 'admin']}>
+              <EquipoNFC />
+            </ProtectedRoute>
+          } />
+
         </Routes>
       </BrowserRouter>
     </AuthProvider>
