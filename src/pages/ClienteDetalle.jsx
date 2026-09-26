@@ -30,13 +30,20 @@ export default function ClienteDetalle() {
   const [editingEqIndex, setEditingEqIndex] = useState(null); 
 
   const fetchClienteData = async () => {
-    if (!id) return;
+    // Agregamos la validación del empresaId para que la regla de Firestore lo apruebe
+    if (!id || !userData?.empresaId) return;
+    
     try {
       const localRef = doc(db, 'locales', id);
       const localSnap = await getDoc(localRef);
       if (localSnap.exists()) setLocal({ id: localSnap.id, ...localSnap.data() });
 
-      const dueñosQuery = query(collection(db, "usuarios"), where("localId", "==", id));
+      // Inyectamos el filtro de empresaId en la consulta
+      const dueñosQuery = query(
+        collection(db, "usuarios"), 
+        where("localId", "==", id),
+        where("empresaId", "==", userData.empresaId)
+      );
       const dueñosSnap = await getDocs(dueñosQuery);
       setDueños(dueñosSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (error) {
@@ -49,7 +56,7 @@ export default function ClienteDetalle() {
   useEffect(() => {
     fetchClienteData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, userData]); // Sumamos userData a las dependencias
 
   const handleGrabarNFC = async (etiqueta) => {
     if (!('NDEFReader' in window)) {
@@ -587,7 +594,7 @@ export default function ClienteDetalle() {
             No se registran auditorías de campo en el período seleccionado.
           </p>
         ) : (
-          <table className="w-full text-[11px] text-left border-collapse mb-12">
+          <table className="w-full text-[12px] text-left border-collapse mb-12">
             <thead>
               <tr className="border-b-2 border-black">
                 <th className="py-2 px-1 font-bold uppercase">Fecha</th>
