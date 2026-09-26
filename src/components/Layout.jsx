@@ -44,10 +44,10 @@ export default function Layout() {
           {/* Navegación horizontal en celular, vertical en PC */}
           <nav className="flex flex-row md:flex-col gap-5 overflow-x-auto pb-2 md:pb-0 hide-scrollbar border-t border-[#2A343A] md:border-0 pt-4 md:pt-0">
             
-            {/* 👑 BOTÓN VIP SUPERADMIN (Solo visible para Creadores) */}
+            {/* BOTÓN VIP SUPERADMIN (Solo visible para Creadores) */}
             {userData?.rol === 'superadmin' && (
               <button onClick={() => navigate('/master-panel')} className="text-left text-sm text-red hover:text-white transition-colors whitespace-nowrap font-bold flex items-center gap-2">
-                <span>⚡</span> Master Panel
+                <span></span> Master Panel
               </button>
             )}
 
