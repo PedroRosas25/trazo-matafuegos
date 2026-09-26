@@ -7,7 +7,7 @@ const AuthContext = createContext();
 
 // 🏆 LA LISTA VIP: Agregá acá los correos que tendrán acceso a la consola central (Dueños de Trazo)
 const SUPER_ADMINS = [
-  'pedrorosasaguilar9@gmail.com',
+  'mr.pepper216@gmail.com',
   // 'tusocio@gmail.com', <-- El día de mañana agregás a otra persona simplemente sumando su correo acá
 ];
 
