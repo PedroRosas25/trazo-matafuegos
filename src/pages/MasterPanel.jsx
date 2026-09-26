@@ -21,14 +21,15 @@ export default function MasterPanel() {
       const empSnap = await getDocs(collection(db, 'empresas'));
       const empresasData = empSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // 2. Traemos TODOS los locales (El SuperAdmin tiene permiso para esto)
+      // 2. Traemos TODOS los locales 
       const localesSnap = await getDocs(collection(db, 'locales'));
       const localesData = localesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      let contadorLocalesGlobal = localesData.length;
+      // Iniciamos los contadores globales en cero
+      let contadorLocalesGlobal = 0;
       let contadorMatafuegosGlobal = 0;
 
-      // 3. Cruzamos los datos: Le asignamos a cada empresa sus métricas
+      // 3. Cruzamos los datos
       const empresasConMetricas = empresasData.map(emp => {
         const localesDeEstaEmpresa = localesData.filter(loc => loc.empresaId === emp.id);
         let matafuegosDeEstaEmpresa = 0;
@@ -36,8 +37,11 @@ export default function MasterPanel() {
         localesDeEstaEmpresa.forEach(loc => {
           const cantidad = loc.equipos ? loc.equipos.length : 0;
           matafuegosDeEstaEmpresa += cantidad;
-          contadorMatafuegosGlobal += cantidad; // Sumamos al pozo global
         });
+
+        // Sumamos al pozo global SOLAMENTE los locales y equipos de empresas válidas
+        contadorLocalesGlobal += localesDeEstaEmpresa.length;
+        contadorMatafuegosGlobal += matafuegosDeEstaEmpresa;
 
         return {
           ...emp,
@@ -104,7 +108,7 @@ export default function MasterPanel() {
     <div className="pb-20 font-sans">
       <div className="mb-8 border-b border-steel pb-4">
         <h1 className="text-[24px] text-ink font-oswald uppercase tracking-wide font-semibold m-0 flex items-center gap-2">
-          <span className="text-red"></span> Panel Maestro de Trazo
+          <span className="text-red">⚡</span> Panel Maestro de Trazo
         </h1>
         <p className="text-steel-2 text-[14px] mt-1">Supervisión de inquilinos y volumen operativo del sistema.</p>
       </div>
