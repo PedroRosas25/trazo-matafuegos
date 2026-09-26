@@ -16,7 +16,16 @@ export default function Auditoria() {
   // Estados para el Modal de Control
   const [showModal, setShowModal] = useState(false);
   const [activeEq, setActiveEq] = useState(null);
-  const [formState, setFormState] = useState({ presion: null, vencimiento: null });
+  
+  // EL NUEVO ESTADO CON LOS 5 PARÁMETROS REGLAMENTARIOS
+  const [formState, setFormState] = useState({ 
+    presion: null, 
+    carga: null, 
+    precinto: null, 
+    accesibilidad: null, 
+    estadoFisico: null 
+  });
+  
   const [imageFile, setImageFile] = useState(null);
   const [uploading, setUploading] = useState(false);
 
@@ -81,7 +90,7 @@ export default function Auditoria() {
   const handleOpenModal = (eq, isDone) => {
     if (isDone) return; 
     setActiveEq(eq);
-    setFormState({ presion: null, vencimiento: null });
+    setFormState({ presion: null, carga: null, precinto: null, accesibilidad: null, estadoFisico: null });
     setImageFile(null);
     setShowModal(true);
   };
@@ -100,8 +109,8 @@ export default function Auditoria() {
 
   // 4. Guardar el control en la Base de Datos y subir la foto con Metadatos
   const handleSubmitControl = async () => {
-    if (!formState.presion || !formState.vencimiento || !imageFile) {
-      alert("⚠️ Por favor, marcá la presión, el vencimiento y sacá una foto obligatoriamente.");
+    if (!formState.presion || !formState.carga || !formState.precinto || !formState.accesibilidad || !formState.estadoFisico || !imageFile) {
+      alert("⚠️ Por favor, completá los 5 controles físicos obligatorios y sacá una foto.");
       return;
     }
 
@@ -124,11 +133,14 @@ export default function Auditoria() {
       const updatedEquipos = activeLocal.equipos.map(eq => {
         if (eq.etiqueta === activeEq.etiqueta) {
           
-          // 1. Armamos el objeto con la memoria del día de hoy
+          // 1. Armamos el objeto con la memoria del día de hoy y los 5 parámetros
           const nuevoRegistro = {
             fecha: hoy,
             presion: formState.presion,
-            carga: formState.vencimiento,
+            carga: formState.carga,
+            precinto: formState.precinto,
+            accesibilidad: formState.accesibilidad,
+            estadoFisico: formState.estadoFisico,
             foto: photoURL
           };
 
@@ -137,7 +149,10 @@ export default function Auditoria() {
             fechaControl: hoy,
             fotoEvidencia: photoURL,
             estadoPresion: formState.presion,
-            estadoCarga: formState.vencimiento,
+            estadoCarga: formState.carga,
+            estadoPrecinto: formState.precinto,
+            estadoAccesibilidad: formState.accesibilidad,
+            estadoFisico: formState.estadoFisico,
             // 2. Inyectamos el nuevo registro al historial antiguo
             historial: [...(eq.historial || []), nuevoRegistro]
           };
@@ -281,7 +296,7 @@ export default function Auditoria() {
           {activeLocal.estadoParada !== 'completado' && (
             <button 
               onClick={handleFinalizarVisita}
-              className="btn btn-primary w-full py-3 text-[14px] shadow-sm"
+              className="btn btn-primary w-full py-3 text-[14px] shadow-sm cursor-pointer"
             >
               Finalizar Visita y Volver
             </button>
@@ -289,40 +304,66 @@ export default function Auditoria() {
         </div>
       )}
 
-      {/* MODAL DE AUDITORÍA */}
+      {/* MODAL DE AUDITORÍA CON LOS 5 PARÁMETROS */}
       {showModal && activeEq && (
-        <div className="fixed inset-0 bg-ink/70 z-50 flex items-center justify-center p-5">
-          <div className="bg-white rounded max-w-[380px] w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-[16px] mb-1 font-oswald uppercase text-ink">Control de campo</h3>
-            <div className="font-mono text-[13px] font-bold text-steel-2 mb-5">#{activeEq.etiqueta}</div>
+        <div className="fixed inset-0 bg-ink/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded max-w-[400px] w-full p-5 shadow-xl max-h-[95vh] overflow-y-auto">
+            <h3 className="text-[16px] mb-1 font-oswald uppercase text-ink">Inspección Reglamentaria</h3>
+            <div className="font-mono text-[13px] font-bold text-steel-2 mb-4">#{activeEq.etiqueta}</div>
             
-            <div className="mb-5">
-              <label className="form-label">Presión del equipo</label>
-              <div className="flex border border-steel rounded overflow-hidden">
-                <button type="button" onClick={() => setFormState({...formState, presion: 'ok'})} className={`flex-1 py-2.5 text-[13px] font-medium border-r border-steel transition-colors ${formState.presion === 'ok' ? 'bg-ink text-white' : 'bg-white text-steel-2 hover:bg-paper'}`}>Correcta</button>
-                <button type="button" onClick={() => setFormState({...formState, presion: 'baja'})} className={`flex-1 py-2.5 text-[13px] font-medium transition-colors ${formState.presion === 'baja' ? 'bg-red text-white' : 'bg-white text-steel-2 hover:bg-paper'}`}>Baja</button>
+            <div className="space-y-3 mb-5">
+              <div>
+                <label className="form-label text-[11px] mb-1">1. Reloj de Presión</label>
+                <div className="flex border border-steel rounded overflow-hidden">
+                  <button type="button" onClick={() => setFormState({...formState, presion: 'ok'})} className={`flex-1 py-2 text-[12px] font-medium border-r border-steel transition-colors cursor-pointer ${formState.presion === 'ok' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Correcta</button>
+                  <button type="button" onClick={() => setFormState({...formState, presion: 'baja'})} className={`flex-1 py-2 text-[12px] font-medium transition-colors cursor-pointer ${formState.presion === 'baja' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Baja</button>
+                </div>
               </div>
-            </div>
 
-            <div className="mb-5">
-              <label className="form-label">Estado de la carga</label>
-              <div className="flex border border-steel rounded overflow-hidden">
-                <button type="button" onClick={() => setFormState({...formState, vencimiento: 'vigente'})} className={`flex-1 py-2.5 text-[13px] font-medium border-r border-steel transition-colors ${formState.vencimiento === 'vigente' ? 'bg-ink text-white' : 'bg-white text-steel-2 hover:bg-paper'}`}>Vigente</button>
-                <button type="button" onClick={() => setFormState({...formState, vencimiento: 'vencido'})} className={`flex-1 py-2.5 text-[13px] font-medium transition-colors ${formState.vencimiento === 'vencido' ? 'bg-red text-white' : 'bg-white text-steel-2 hover:bg-paper'}`}>Vencida</button>
+              <div>
+                <label className="form-label text-[11px] mb-1">2. Estado de la Carga</label>
+                <div className="flex border border-steel rounded overflow-hidden">
+                  <button type="button" onClick={() => setFormState({...formState, carga: 'vigente'})} className={`flex-1 py-2 text-[12px] font-medium border-r border-steel transition-colors cursor-pointer ${formState.carga === 'vigente' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Vigente</button>
+                  <button type="button" onClick={() => setFormState({...formState, carga: 'vencido'})} className={`flex-1 py-2 text-[12px] font-medium transition-colors cursor-pointer ${formState.carga === 'vencido' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Vencida</button>
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label text-[11px] mb-1">3. Precinto y Pasador</label>
+                <div className="flex border border-steel rounded overflow-hidden">
+                  <button type="button" onClick={() => setFormState({...formState, precinto: 'intacto'})} className={`flex-1 py-2 text-[12px] font-medium border-r border-steel transition-colors cursor-pointer ${formState.precinto === 'intacto' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Intacto</button>
+                  <button type="button" onClick={() => setFormState({...formState, precinto: 'roto'})} className={`flex-1 py-2 text-[12px] font-medium transition-colors cursor-pointer ${formState.precinto === 'roto' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Roto / Ausente</button>
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label text-[11px] mb-1">4. Accesibilidad y Soporte</label>
+                <div className="flex border border-steel rounded overflow-hidden">
+                  <button type="button" onClick={() => setFormState({...formState, accesibilidad: 'despejado'})} className={`flex-1 py-2 text-[12px] font-medium border-r border-steel transition-colors cursor-pointer ${formState.accesibilidad === 'despejado' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Despejado</button>
+                  <button type="button" onClick={() => setFormState({...formState, accesibilidad: 'obstruido'})} className={`flex-1 py-2 text-[12px] font-medium transition-colors cursor-pointer ${formState.accesibilidad === 'obstruido' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Obstruido</button>
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label text-[11px] mb-1">5. Estado Físico (Cilindro/Manguera)</label>
+                <div className="flex border border-steel rounded overflow-hidden">
+                  <button type="button" onClick={() => setFormState({...formState, estadoFisico: 'optimo'})} className={`flex-1 py-2 text-[12px] font-medium border-r border-steel transition-colors cursor-pointer ${formState.estadoFisico === 'optimo' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Óptimo</button>
+                  <button type="button" onClick={() => setFormState({...formState, estadoFisico: 'danado'})} className={`flex-1 py-2 text-[12px] font-medium transition-colors cursor-pointer ${formState.estadoFisico === 'danado' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Dañado</button>
+                </div>
               </div>
             </div>
 
             <div className="mb-6">
               <label className="form-label">Foto de evidencia obligatoria</label>
-              <div className={`relative w-full border border-dashed rounded p-4 flex items-center justify-center gap-2.5 text-[13px] font-medium transition-colors cursor-pointer ${imageFile ? 'border-green bg-green/10 text-[#2e7d32]' : 'border-steel-2 bg-white text-steel-2 hover:bg-paper'}`}>
-                <span>{imageFile ? '✓ Fotografía capturada (Tocar para cambiar)' : '📸 Tocar para abrir cámara'}</span>
+              <div className={`relative w-full border border-dashed rounded p-4 flex items-center justify-center gap-2.5 text-[13px] font-medium transition-colors cursor-pointer ${imageFile ? 'border-green bg-green/10 text-[#2e7d32]' : 'border-steel-2 bg-paper text-steel-2 hover:border-ink'}`}>
+                <span>{imageFile ? '✓ Fotografía capturada' : '📸 Tocar para abrir cámara'}</span>
                 <input type="file" accept="image/*" capture="environment" onChange={handlePhotoCapture} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
               </div>
             </div>
 
             <div className="flex gap-2">
-              <button onClick={handleCloseModal} disabled={uploading} className="btn btn-outline flex-1">Cancelar</button>
-              <button onClick={handleSubmitControl} disabled={uploading} className="btn btn-primary flex-1">
+              <button onClick={handleCloseModal} disabled={uploading} className="btn btn-outline flex-1 cursor-pointer">Cancelar</button>
+              <button onClick={handleSubmitControl} disabled={uploading} className="btn btn-primary flex-1 cursor-pointer">
                 {uploading ? 'Subiendo...' : 'Registrar'}
               </button>
             </div>

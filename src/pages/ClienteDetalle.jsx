@@ -87,9 +87,12 @@ export default function ClienteDetalle() {
         equiposActualizados[editingEqIndex] = { 
           ...equiposActualizados[editingEqIndex], 
           ...datosFormulario,
-          // REGLA DE NEGOCIO: Si el admin lo edita (pasa por taller), se "curan" las alertas del técnico automáticamente
+          // REGLA DE NEGOCIO: Si el admin lo edita (pasa por taller), se "curan" las 5 alertas del técnico
           estadoPresion: 'ok',
-          estadoCarga: 'vigente'
+          estadoCarga: 'vigente',
+          estadoPrecinto: 'intacto',
+          estadoAccesibilidad: 'despejado',
+          estadoFisico: 'optimo'
         };
       } else {
         equiposActualizados.push({ ...datosFormulario, fechaAlta: new Date().toISOString(), historial: [] });
@@ -246,8 +249,9 @@ export default function ClienteDetalle() {
       const fechaReg = new Date(anio, mes - 1, dia);
       if (fechaReg >= fechaLimite || mesesFiltro === 999) {
         registrosHistoricos.push({
-          fecha: eq.fechaControl, presion: eq.estadoPresion, carga: eq.estadoCarga, foto: eq.fotoEvidencia,
-          etiqueta: eq.etiqueta, ubicacion: eq.ubicacion, tipo: eq.tipo
+          fecha: eq.fechaControl, presion: eq.estadoPresion, carga: eq.estadoCarga,
+          precinto: eq.estadoPrecinto || 'intacto', accesibilidad: eq.estadoAccesibilidad || 'despejado', estadoFisico: eq.estadoFisico || 'optimo',
+          foto: eq.fotoEvidencia, etiqueta: eq.etiqueta, ubicacion: eq.ubicacion, tipo: eq.tipo
         });
       }
     }
@@ -335,10 +339,12 @@ export default function ClienteDetalle() {
                   const esVigente = eq.vencimiento && new Date(eq.vencimiento) >= hoy;
                   const fechaFormat = eq.vencimiento ? new Date(eq.vencimiento).toLocaleDateString('es-AR', { timeZone: 'UTC' }) : '-';
                   
+                  const fisicoOk = eq.estadoPresion !== 'baja' && eq.estadoCarga !== 'vencido' && eq.estadoPrecinto !== 'roto' && eq.estadoAccesibilidad !== 'obstruido' && eq.estadoFisico !== 'danado';
+
                   let estadoPill = { label: 'Vigente', bg: 'bg-green/10', text: 'text-[#2e7d32]' };
                   if (!esVigente) {
                     estadoPill = { label: 'Carga Vencida', bg: 'bg-red/10', text: 'text-red' };
-                  } else if (eq.estadoPresion === 'baja' || eq.estadoCarga === 'vencido') {
+                  } else if (!fisicoOk) {
                     estadoPill = { label: 'Mantenimiento', bg: 'bg-amber-bg', text: 'text-amber' }; 
                   }
                   
@@ -352,7 +358,12 @@ export default function ClienteDetalle() {
                         {eq.fechaControl ? (
                           <div className="flex flex-col gap-0.5 items-start">
                             <span className="text-[12px] font-bold text-ink">Inspección: {eq.fechaControl}</span>
-                            <span className="text-[11px] text-steel-2">Presión: {eq.estadoPresion === 'ok' ? 'Correcta' : 'Baja'}</span>
+                            
+                            <div className="text-[10px] text-steel-2 leading-tight mt-0.5">
+                              P: {eq.estadoPresion==='ok'?'OK':'BAJA'} · C: {eq.estadoCarga==='vigente'?'OK':'VENC'} · Pr: {eq.estadoPrecinto==='intacto'?'OK':'ROTO'} <br/>
+                              Acc: {eq.estadoAccesibilidad==='despejado'?'OK':'OBST'} · Fís: {eq.estadoFisico==='optimo'?'OK':'DAÑO'}
+                            </div>
+
                             {eq.fotoEvidencia && (
                               <button 
                                 onClick={() => setVisorImagen(eq.fotoEvidencia)}
@@ -576,30 +587,33 @@ export default function ClienteDetalle() {
             No se registran auditorías de campo en el período seleccionado.
           </p>
         ) : (
-          <table className="w-full text-[12px] text-left border-collapse mb-12">
+          <table className="w-full text-[11px] text-left border-collapse mb-12">
             <thead>
               <tr className="border-b-2 border-black">
-                <th className="py-2 px-2 font-bold uppercase">Fecha del Evento</th>
-                <th className="py-2 px-2 font-bold uppercase">Identificación (NFC)</th>
-                <th className="py-2 px-2 font-bold uppercase">Ubicación y Equipo</th>
-                <th className="py-2 px-2 font-bold uppercase text-center">Estado Verificado</th>
-                <th className="py-2 px-2 font-bold uppercase text-center">Evidencia Física</th>
+                <th className="py-2 px-1 font-bold uppercase">Fecha</th>
+                <th className="py-2 px-1 font-bold uppercase">Identificación (NFC)</th>
+                <th className="py-2 px-1 font-bold uppercase">Ubicación y Equipo</th>
+                <th className="py-2 px-1 font-bold uppercase text-center w-[200px]">Desglose Visual</th>
+                <th className="py-2 px-1 font-bold uppercase text-center">Evidencia Física</th>
               </tr>
             </thead>
             <tbody>
               {registrosHistoricos.map((reg, idx) => (
                 <tr key={idx} className="border-b border-gray-300">
-                  <td className="py-4 px-2 font-mono font-bold">{reg.fecha}</td>
-                  <td className="py-4 px-2 font-mono">{reg.etiqueta}</td>
-                  <td className="py-4 px-2">
+                  <td className="py-4 px-1 font-mono font-bold">{reg.fecha}</td>
+                  <td className="py-4 px-1 font-mono">{reg.etiqueta}</td>
+                  <td className="py-4 px-1">
                     <span className="font-bold">{reg.ubicacion}</span><br/>
                     <span className="text-gray-600">{reg.tipo}</span>
                   </td>
-                  <td className="py-4 px-2 text-center">
-                    <div className="font-bold uppercase text-[10px]">{reg.presion === 'ok' ? 'Presión Correcta' : 'Presión Baja'}</div>
-                    <div className="uppercase text-[10px] text-gray-600 mt-0.5">{reg.carga === 'vigente' ? 'Carga Vigente' : 'Polvo Vencido'}</div>
+                  <td className="py-4 px-1 text-center leading-tight uppercase text-[9px]">
+                    <div className={reg.presion === 'ok' ? '' : 'text-red font-bold'}>Presión: {reg.presion === 'ok' ? 'OK' : 'BAJA'}</div>
+                    <div className={reg.carga === 'vigente' ? '' : 'text-red font-bold'}>Carga: {reg.carga === 'vigente' ? 'VIGENTE' : 'VENCIDA'}</div>
+                    <div className={reg.precinto === 'intacto' ? '' : 'text-red font-bold'}>Precinto: {reg.precinto === 'intacto' ? 'INTACTO' : 'ROTO'}</div>
+                    <div className={reg.accesibilidad === 'despejado' ? '' : 'text-red font-bold'}>Acceso: {reg.accesibilidad === 'despejado' ? 'DESPEJADO' : 'OBSTRUIDO'}</div>
+                    <div className={reg.estadoFisico === 'optimo' ? '' : 'text-red font-bold'}>Físico: {reg.estadoFisico === 'optimo' ? 'ÓPTIMO' : 'DAÑADO'}</div>
                   </td>
-                  <td className="py-4 px-2 flex justify-center">
+                  <td className="py-4 px-1 flex justify-center">
                     {reg.foto ? (
                       <img src={reg.foto} alt="Evidencia" className="w-16 h-16 object-cover rounded border border-gray-400" />
                     ) : (

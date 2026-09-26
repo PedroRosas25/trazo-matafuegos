@@ -14,7 +14,14 @@ export default function EquipoNFC() {
   const [equipo, setEquipo] = useState(null);
   const [localPadre, setLocalPadre] = useState(null);
   
-  const [formState, setFormState] = useState({ presion: null, vencimiento: null });
+  // EL NUEVO ESTADO CON LOS 5 PARÁMETROS REGLAMENTARIOS
+  const [formState, setFormState] = useState({ 
+    presion: null, 
+    carga: null, 
+    precinto: null, 
+    accesibilidad: null, 
+    estadoFisico: null 
+  });
   const [imageFile, setImageFile] = useState(null);
   
   const [esperandoNFC, setEsperandoNFC] = useState(false);
@@ -64,8 +71,9 @@ export default function EquipoNFC() {
 
   // 1. EL PATOVICA NFC (Anti-Trampa)
   const iniciarValidacionFisica = async () => {
-    if (!formState.presion || !formState.vencimiento || !imageFile) {
-      alert("⚠️ Completá la inspección visual y tomá la foto primero.");
+    // Validamos que haya completado los 5 controles
+    if (!formState.presion || !formState.carga || !formState.precinto || !formState.accesibilidad || !formState.estadoFisico || !imageFile) {
+      alert("⚠️ Completá todos los controles físicos y la foto primero.");
       return;
     }
 
@@ -111,10 +119,14 @@ export default function EquipoNFC() {
       const updatedEquipos = localPadre.equipos.map(eq => {
         if (eq.etiqueta === equipo.etiqueta) {
           
+          // 1. Armamos el objeto con la memoria del día de hoy y los 5 parámetros
           const nuevoRegistro = {
             fecha: hoy,
             presion: formState.presion,
-            carga: formState.vencimiento,
+            carga: formState.carga,
+            precinto: formState.precinto,
+            accesibilidad: formState.accesibilidad,
+            estadoFisico: formState.estadoFisico,
             foto: photoURL
           };
 
@@ -123,7 +135,10 @@ export default function EquipoNFC() {
             fechaControl: hoy,
             fotoEvidencia: photoURL,
             estadoPresion: formState.presion,
-            estadoCarga: formState.vencimiento,
+            estadoCarga: formState.carga,
+            estadoPrecinto: formState.precinto,
+            estadoAccesibilidad: formState.accesibilidad,
+            estadoFisico: formState.estadoFisico,
             historial: [...(eq.historial || []), nuevoRegistro]
           };
         }
@@ -200,22 +215,48 @@ export default function EquipoNFC() {
           <button onClick={() => navigate('/auditoria')} className="btn btn-primary mt-5 px-6">Volver a la ruta</button>
         </div>
       ) : (
-        <div className="card-base p-6 shadow-sm bg-white">
-          <h3 className="text-[15px] mb-5 font-oswald uppercase text-ink border-b border-steel pb-2">Control Técnico</h3>
+        <div className="card-base p-5 shadow-sm bg-white">
+          <h3 className="text-[15px] mb-4 font-oswald uppercase text-ink border-b border-steel pb-2">Control Técnico Oficial</h3>
           
-          <div className="mb-5">
-            <label className="form-label">Reloj de Presión</label>
-            <div className="flex border border-steel rounded overflow-hidden">
-              <button onClick={() => setFormState({...formState, presion: 'ok'})} className={`flex-1 py-3 text-[13px] font-medium border-r border-steel transition-colors ${formState.presion === 'ok' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>En Verde (Correcta)</button>
-              <button onClick={() => setFormState({...formState, presion: 'baja'})} className={`flex-1 py-3 text-[13px] font-medium transition-colors ${formState.presion === 'baja' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Despresurizado</button>
+          <div className="space-y-4 mb-6">
+            <div>
+              <label className="form-label text-[11px] mb-1">1. Reloj de Presión</label>
+              <div className="flex border border-steel rounded overflow-hidden">
+                <button onClick={() => setFormState({...formState, presion: 'ok'})} className={`flex-1 py-3 text-[13px] font-medium border-r border-steel transition-colors cursor-pointer ${formState.presion === 'ok' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Correcta</button>
+                <button onClick={() => setFormState({...formState, presion: 'baja'})} className={`flex-1 py-3 text-[13px] font-medium transition-colors cursor-pointer ${formState.presion === 'baja' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Despresurizado</button>
+              </div>
             </div>
-          </div>
 
-          <div className="mb-5">
-            <label className="form-label">Estado Físico / Chapa</label>
-            <div className="flex border border-steel rounded overflow-hidden">
-              <button onClick={() => setFormState({...formState, vencimiento: 'vigente'})} className={`flex-1 py-3 text-[13px] font-medium border-r border-steel transition-colors ${formState.vencimiento === 'vigente' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Óptimo</button>
-              <button onClick={() => setFormState({...formState, vencimiento: 'vencido'})} className={`flex-1 py-3 text-[13px] font-medium transition-colors ${formState.vencimiento === 'vencido' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Deteriorado</button>
+            <div>
+              <label className="form-label text-[11px] mb-1">2. Estado de la Carga</label>
+              <div className="flex border border-steel rounded overflow-hidden">
+                <button onClick={() => setFormState({...formState, carga: 'vigente'})} className={`flex-1 py-3 text-[13px] font-medium border-r border-steel transition-colors cursor-pointer ${formState.carga === 'vigente' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Vigente</button>
+                <button onClick={() => setFormState({...formState, carga: 'vencido'})} className={`flex-1 py-3 text-[13px] font-medium transition-colors cursor-pointer ${formState.carga === 'vencido' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Vencida</button>
+              </div>
+            </div>
+
+            <div>
+              <label className="form-label text-[11px] mb-1">3. Precinto y Pasador</label>
+              <div className="flex border border-steel rounded overflow-hidden">
+                <button onClick={() => setFormState({...formState, precinto: 'intacto'})} className={`flex-1 py-3 text-[13px] font-medium border-r border-steel transition-colors cursor-pointer ${formState.precinto === 'intacto' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Intacto</button>
+                <button onClick={() => setFormState({...formState, precinto: 'roto'})} className={`flex-1 py-3 text-[13px] font-medium transition-colors cursor-pointer ${formState.precinto === 'roto' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Roto / Ausente</button>
+              </div>
+            </div>
+
+            <div>
+              <label className="form-label text-[11px] mb-1">4. Accesibilidad y Soporte</label>
+              <div className="flex border border-steel rounded overflow-hidden">
+                <button onClick={() => setFormState({...formState, accesibilidad: 'despejado'})} className={`flex-1 py-3 text-[13px] font-medium border-r border-steel transition-colors cursor-pointer ${formState.accesibilidad === 'despejado' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Despejado</button>
+                <button onClick={() => setFormState({...formState, accesibilidad: 'obstruido'})} className={`flex-1 py-3 text-[13px] font-medium transition-colors cursor-pointer ${formState.accesibilidad === 'obstruido' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Obstruido</button>
+              </div>
+            </div>
+
+            <div>
+              <label className="form-label text-[11px] mb-1">5. Estado Físico (Cilindro/Manguera)</label>
+              <div className="flex border border-steel rounded overflow-hidden">
+                <button onClick={() => setFormState({...formState, estadoFisico: 'optimo'})} className={`flex-1 py-3 text-[13px] font-medium border-r border-steel transition-colors cursor-pointer ${formState.estadoFisico === 'optimo' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Óptimo</button>
+                <button onClick={() => setFormState({...formState, estadoFisico: 'danado'})} className={`flex-1 py-3 text-[13px] font-medium transition-colors cursor-pointer ${formState.estadoFisico === 'danado' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Dañado</button>
+              </div>
             </div>
           </div>
 
@@ -231,7 +272,7 @@ export default function EquipoNFC() {
           <button 
             onClick={iniciarValidacionFisica} 
             disabled={uploading} 
-            className="btn btn-ink w-full py-3.5 text-[14px] font-bold flex items-center justify-center gap-2"
+            className="btn btn-ink w-full py-3.5 text-[14px] font-bold flex items-center justify-center gap-2 cursor-pointer"
           >
             {uploading ? 'Procesando reporte...' : 'Validar con NFC y Guardar'}
           </button>

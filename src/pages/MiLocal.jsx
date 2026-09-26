@@ -88,10 +88,13 @@ export default function MiLocal() {
                 const esVigente = eq.vencimiento && new Date(eq.vencimiento) >= hoy;
                 const fechaFormat = eq.vencimiento ? new Date(eq.vencimiento).toLocaleDateString('es-AR', { timeZone: 'UTC' }) : '-';
                 
+                // Aplicamos la lógica forense de los 5 parámetros[cite: 13]
+                const fisicoOk = eq.estadoPresion !== 'baja' && eq.estadoCarga !== 'vencido' && eq.estadoPrecinto !== 'roto' && eq.estadoAccesibilidad !== 'obstruido' && eq.estadoFisico !== 'danado';
+                
                 let estadoPill = { label: 'Vigente', bg: 'bg-green/10', text: 'text-[#2e7d32]' };
                 if (!esVigente) {
                   estadoPill = { label: 'Carga Vencida', bg: 'bg-red/10', text: 'text-red' };
-                } else if (eq.estadoPresion === 'baja' || eq.estadoCarga === 'vencido') {
+                } else if (!fisicoOk) {
                   estadoPill = { label: 'Revisión Sugerida', bg: 'bg-amber-bg', text: 'text-amber' }; 
                 }
                 
@@ -105,7 +108,13 @@ export default function MiLocal() {
                       {eq.fechaControl ? (
                         <div className="flex flex-col gap-0.5 items-start">
                           <span className="text-[12px] font-bold text-ink">{eq.fechaControl}</span>
-                          <span className="text-[11px] text-steel-2">Presión: {eq.estadoPresion === 'ok' ? 'Correcta' : 'Baja'}</span>
+                          
+                          {/* Desglose de los 5 parámetros inyectado[cite: 13] */}
+                          <div className="text-[10px] text-steel-2 leading-tight mt-0.5">
+                            P: {eq.estadoPresion==='ok'?'OK':'BAJA'} · C: {eq.estadoCarga==='vigente'?'OK':'VENC'} · Pr: {eq.estadoPrecinto==='intacto'?'OK':'ROTO'} <br/>
+                            Acc: {eq.estadoAccesibilidad==='despejado'?'OK':'OBST'} · Fís: {eq.estadoFisico==='optimo'?'OK':'DAÑO'}
+                          </div>
+                          
                           {eq.fotoEvidencia && (
                             <button 
                               onClick={() => setVisorImagen(eq.fotoEvidencia)}
