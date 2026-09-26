@@ -4,10 +4,14 @@ import { db } from '../services/firebase';
 
 export default function MasterPanel() {
   const [empresas, setEmpresas] = useState([]);
+  const [allLocales, setAllLocales] = useState([]); // Guardamos todos los locales en memoria para cruzar datos gratis
   const [stats, setStats] = useState({ totalEmpresas: 0, totalLocales: 0, totalMatafuegos: 0 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
+  // Estado para la ventana flotante de detalles
+  const [selectedEmpresa, setSelectedEmpresa] = useState(null);
+
   const [form, setForm] = useState({ 
     nombre: '', 
     cuit: '', 
@@ -17,19 +21,17 @@ export default function MasterPanel() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // 1. Traemos todas las empresas
       const empSnap = await getDocs(collection(db, 'empresas'));
       const empresasData = empSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // 2. Traemos TODOS los locales 
       const localesSnap = await getDocs(collection(db, 'locales'));
       const localesData = localesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // Iniciamos los contadores globales en cero
+      setAllLocales(localesData); // Lo guardamos para usarlo en el modal sin volver a consultar Firebase
+
       let contadorLocalesGlobal = 0;
       let contadorMatafuegosGlobal = 0;
 
-      // 3. Cruzamos los datos
       const empresasConMetricas = empresasData.map(emp => {
         const localesDeEstaEmpresa = localesData.filter(loc => loc.empresaId === emp.id);
         let matafuegosDeEstaEmpresa = 0;
@@ -39,7 +41,6 @@ export default function MasterPanel() {
           matafuegosDeEstaEmpresa += cantidad;
         });
 
-        // Sumamos al pozo global SOLAMENTE los locales y equipos de empresas válidas
         contadorLocalesGlobal += localesDeEstaEmpresa.length;
         contadorMatafuegosGlobal += matafuegosDeEstaEmpresa;
 
@@ -93,7 +94,7 @@ export default function MasterPanel() {
       alert(`✅ ¡SaaS configurado! La empresa ${form.nombre} ya puede usar el sistema.`);
       
       setForm({ nombre: '', cuit: '', adminEmail: '' });
-      fetchDashboardData(); // Recargamos para actualizar estadísticas
+      fetchDashboardData(); 
     } catch (error) {
       console.error("Error creando inquilino:", error);
       alert("Hubo un error al dar de alta la empresa.");
@@ -102,13 +103,29 @@ export default function MasterPanel() {
     }
   };
 
+  // ==========================================
+  // LÓGICA DEL MODAL DE DETALLE DE EMPRESA
+  // ==========================================
+  const localesSeleccionados = selectedEmpresa ? allLocales.filter(loc => loc.empresaId === selectedEmpresa.id) : [];
+  
+  let vigentesEmpresa = 0;
+  let vencidosEmpresa = 0;
+  const hoy = new Date();
+
+  localesSeleccionados.forEach(loc => {
+    (loc.equipos || []).forEach(eq => {
+      if (eq.vencimiento && new Date(eq.vencimiento) >= hoy) vigentesEmpresa++;
+      else vencidosEmpresa++;
+    });
+  });
+
   if (loading) return <div className="p-8 text-steel-2 font-mono text-sm">Procesando métricas globales de Trazo...</div>;
 
   return (
     <div className="pb-20 font-sans">
       <div className="mb-8 border-b border-steel pb-4">
         <h1 className="text-[24px] text-ink font-oswald uppercase tracking-wide font-semibold m-0 flex items-center gap-2">
-          <span className="text-red">⚡</span> Panel Maestro de Trazo
+          <span className="text-red"></span> Panel Maestro de Trazo
         </h1>
         <p className="text-steel-2 text-[14px] mt-1">Supervisión de inquilinos y volumen operativo del sistema.</p>
       </div>
@@ -162,6 +179,7 @@ export default function MasterPanel() {
           <div className="bg-white border border-steel rounded shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-steel bg-paper/30 flex justify-between items-center">
               <h3 className="text-[14px] font-oswald font-bold uppercase tracking-wide text-ink m-0">Rendimiento por Franquicia</h3>
+              <span className="text-[11px] text-steel-2">Hacé clic en una empresa para ver detalles</span>
             </div>
             
             <div className="overflow-x-auto">
@@ -176,9 +194,13 @@ export default function MasterPanel() {
                 </thead>
                 <tbody>
                   {empresas.map((emp) => (
-                    <tr key={emp.id} className="border-b border-steel last:border-0 hover:bg-paper transition-colors">
+                    <tr 
+                      key={emp.id} 
+                      onClick={() => setSelectedEmpresa(emp)}
+                      className="border-b border-steel last:border-0 hover:bg-paper transition-colors cursor-pointer group"
+                    >
                       <td className="px-5 py-4">
-                        <div className="font-bold text-ink">{emp.nombre}</div>
+                        <div className="font-bold text-ink group-hover:text-[#4285F4] transition-colors">{emp.nombre}</div>
                         <div className="text-steel-2 text-[11px] mt-0.5">{emp.adminId}</div>
                       </td>
                       <td className="px-5 py-4 text-center">
@@ -206,8 +228,87 @@ export default function MasterPanel() {
             </div>
           </div>
         </div>
-
       </div>
+
+      {/* ======================================================= */}
+      {/* VENTANA MODAL: DETALLES DE LA EMPRESA SELECCIONADA */}
+      {/* ======================================================= */}
+      {selectedEmpresa && (
+        <div className="fixed inset-0 bg-ink/70 z-50 flex items-center justify-center p-5 backdrop-blur-sm">
+          <div className="bg-white rounded max-w-[700px] w-full shadow-2xl flex flex-col max-h-[90vh]">
+            
+            {/* Cabecera del Modal */}
+            <div className="p-6 border-b border-steel flex justify-between items-start bg-paper/30">
+              <div>
+                <h3 className="text-[22px] font-oswald uppercase tracking-wide text-ink m-0">{selectedEmpresa.nombre}</h3>
+                <div className="flex gap-4 mt-2">
+                  <span className="text-[12px] text-steel-2 font-mono">CUIT: {selectedEmpresa.cuit}</span>
+                  <span className="text-[12px] text-steel-2 font-mono">Alta: {selectedEmpresa.fechaAlta || '-'}</span>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedEmpresa(null)} 
+                className="text-steel-2 hover:text-red font-bold text-xl leading-none cursor-pointer border-none bg-transparent"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Contenido scrolleable */}
+            <div className="p-6 overflow-y-auto">
+              
+              {/* Tarjetas de salud de la empresa */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+                <div className="border border-steel rounded p-3 text-center">
+                  <div className="text-[10px] uppercase text-steel-2 font-bold mb-1">Locales</div>
+                  <div className="text-xl font-oswald font-bold">{selectedEmpresa.cantidadLocales}</div>
+                </div>
+                <div className="border border-steel rounded p-3 text-center">
+                  <div className="text-[10px] uppercase text-steel-2 font-bold mb-1">Equipos</div>
+                  <div className="text-xl font-oswald font-bold text-ink">{selectedEmpresa.cantidadMatafuegos}</div>
+                </div>
+                <div className="border border-green/30 bg-green/5 rounded p-3 text-center">
+                  <div className="text-[10px] uppercase text-[#2e7d32] font-bold mb-1">Vigentes</div>
+                  <div className="text-xl font-oswald font-bold text-[#2e7d32]">{vigentesEmpresa}</div>
+                </div>
+                <div className="border border-red/30 bg-red/5 rounded p-3 text-center">
+                  <div className="text-[10px] uppercase text-red font-bold mb-1">Vencidos</div>
+                  <div className="text-xl font-oswald font-bold text-red">{vencidosEmpresa}</div>
+                </div>
+              </div>
+
+              {/* Lista de Locales de esta empresa */}
+              <h4 className="text-[13px] font-bold uppercase tracking-wider text-ink mb-4 border-b border-steel pb-2">Cartera de Clientes ({localesSeleccionados.length})</h4>
+              
+              <div className="space-y-3">
+                {localesSeleccionados.map(loc => {
+                  const cantEquipos = loc.equipos ? loc.equipos.length : 0;
+                  return (
+                    <div key={loc.id} className="flex justify-between items-center p-3 border border-steel rounded hover:bg-paper transition-colors">
+                      <div>
+                        <div className="font-bold text-[13.5px] text-ink">{loc.name}</div>
+                        <div className="text-[11.5px] text-steel-2 mt-0.5">{loc.addr}</div>
+                      </div>
+                      <div className="text-right">
+                        <span className="bg-ink text-white text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide">
+                          {cantEquipos} Equipos
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {localesSeleccionados.length === 0 && (
+                  <div className="text-center text-steel-2 text-[13px] italic py-4">
+                    Esta empresa aún no ha cargado locales en el sistema.
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
