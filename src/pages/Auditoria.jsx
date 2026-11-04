@@ -2,34 +2,14 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
-import { uploadToCloudinary } from '../services/cloudinary';
 
 export default function Auditoria() {
   const { userData } = useAuth();
   
   const [ruta, setRuta] = useState(null);
   const [loading, setLoading] = useState(true);
-  
-  // Estado para la visita actual
   const [activeLocal, setActiveLocal] = useState(null);
-  
-  // Estados para el Modal de Control
-  const [showModal, setShowModal] = useState(false);
-  const [activeEq, setActiveEq] = useState(null);
-  
-  // EL NUEVO ESTADO CON LOS 5 PARÁMETROS REGLAMENTARIOS
-  const [formState, setFormState] = useState({ 
-    presion: null, 
-    carga: null, 
-    precinto: null, 
-    accesibilidad: null, 
-    estadoFisico: null 
-  });
-  
-  const [imageFile, setImageFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
 
-  // 1. Buscar la ruta asignada a este técnico
   const fetchRuta = async () => {
     if (!userData || !userData.email) return;
     setLoading(true);
@@ -54,11 +34,10 @@ export default function Auditoria() {
   };
 
   useEffect(() => {
+    // Escuchamos cuando el técnico vuelve de escanear un NFC para refrescar la vista
     fetchRuta();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userData]);
 
-  // 2. Abrir una parada y cargar los equipos reales del local
   const handleOpenStop = async (parada) => {
     setLoading(true);
     try {
@@ -86,95 +65,6 @@ export default function Auditoria() {
     fetchRuta(); 
   };
 
-  // 3. Lógica del Modal de Auditoría
-  const handleOpenModal = (eq, isDone) => {
-    if (isDone) return; 
-    setActiveEq(eq);
-    setFormState({ presion: null, carga: null, precinto: null, accesibilidad: null, estadoFisico: null });
-    setImageFile(null);
-    setShowModal(true);
-  };
-
-  const handleCloseModal = () => {
-    if (uploading) return;
-    setShowModal(false);
-    setActiveEq(null);
-    setImageFile(null);
-  };
-
-  const handlePhotoCapture = (e) => {
-    const file = e.target.files[0];
-    if (file) setImageFile(file);
-  };
-
-  // 4. Guardar el control en la Base de Datos y subir la foto con Metadatos
-  const handleSubmitControl = async () => {
-    if (!formState.presion || !formState.carga || !formState.precinto || !formState.accesibilidad || !formState.estadoFisico || !imageFile) {
-      alert("⚠️ Por favor, completá los 5 controles físicos obligatorios y sacá una foto.");
-      return;
-    }
-
-    setUploading(true);
-
-    try {
-      // Definimos la fecha antes de subir la foto para incluirla en los metadatos
-      const hoy = new Date().toLocaleDateString('es-AR');
-
-      // a. Armamos la ruta dinámica de carpetas
-      const rutaCarpeta = `Trazo/${userData.empresaId}/${activeLocal.id}`;
-      
-      // b. Armamos el string de metadatos (ahora con la fecha incluida)
-      const metadata = `extintor=${activeEq.etiqueta}|ubicacion=${activeEq.ubicacion}|local=${activeLocal.name}|fecha=${hoy}`;
-      
-      // c. Subimos la foto con todas las variables
-      const photoURL = await uploadToCloudinary(imageFile, rutaCarpeta, metadata);
-
-      // Actualizamos el array de equipos localmente para Firestore
-      const updatedEquipos = activeLocal.equipos.map(eq => {
-        if (eq.etiqueta === activeEq.etiqueta) {
-          
-          // 1. Armamos el objeto con la memoria del día de hoy y los 5 parámetros
-          const nuevoRegistro = {
-            fecha: hoy,
-            presion: formState.presion,
-            carga: formState.carga,
-            precinto: formState.precinto,
-            accesibilidad: formState.accesibilidad,
-            estadoFisico: formState.estadoFisico,
-            foto: photoURL
-          };
-
-          return { 
-            ...eq, 
-            fechaControl: hoy,
-            fotoEvidencia: photoURL,
-            estadoPresion: formState.presion,
-            estadoCarga: formState.carga,
-            estadoPrecinto: formState.precinto,
-            estadoAccesibilidad: formState.accesibilidad,
-            estadoFisico: formState.estadoFisico,
-            // 2. Inyectamos el nuevo registro al historial antiguo
-            historial: [...(eq.historial || []), nuevoRegistro]
-          };
-        }
-        return eq;
-      });
-
-      // Guardamos en Firestore
-      await updateDoc(doc(db, "locales", activeLocal.id), { equipos: updatedEquipos });
-      
-      setActiveLocal({ ...activeLocal, equipos: updatedEquipos });
-      handleCloseModal();
-      
-    } catch (error) {
-      console.error("Error al actualizar el control:", error);
-      alert("Hubo un error al subir la foto o guardar los datos.");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  // 5. Finalizar Visita 
   const handleFinalizarVisita = async () => {
     try {
       setLoading(true);
@@ -186,7 +76,6 @@ export default function Auditoria() {
       });
 
       await updateDoc(doc(db, "rutas", ruta.id), { paradas: nuevasParadas });
-      
       alert("¡Visita finalizada! Progreso enviado al Gestor.");
       handleBack();
     } catch (error) {
@@ -233,7 +122,7 @@ export default function Auditoria() {
                       </div>
                       <div>
                         <div className="font-semibold text-[14.5px] mb-0.5 text-ink">{parada.nombre}</div>
-                        <div className="text-[12px] text-steel-2">{parada.direccion}</div>
+                        <div className="text-[12px] text-steel-2">{parada.direccion} · <span className="font-bold">{parada.zona || 'Sin Zona'}</span></div>
                       </div>
                     </div>
                     <div className="text-[11px] font-bold uppercase tracking-wider">
@@ -247,18 +136,25 @@ export default function Auditoria() {
         </>
       )}
 
-      {/* VISTA 2: DETALLE DEL LOCAL A AUDITAR */}
+      {/* VISTA 2: CHECKLIST DEL LOCAL (Solo lectura, obliga a usar NFC) */}
       {activeLocal && (
         <div>
           <button onClick={handleBack} className="inline-flex items-center gap-1.5 text-[13px] text-steel-2 cursor-pointer mb-4 bg-transparent border-none p-0 hover:text-ink font-medium">
             <span className="text-lg leading-none">&lsaquo;</span> Volver a mi ruta
           </button>
           
+          <div className="bg-[#fff9e6] border-l-4 border-amber p-4 mb-4 rounded shadow-sm">
+            <p className="text-[13px] text-ink font-medium m-0 flex items-center gap-2">
+              <span className="text-lg">⚠️</span>
+              Para realizar el control de campo, debés apoyar tu celular sobre el chip NFC de cada matafuego.
+            </p>
+          </div>
+
           <div className="card-base overflow-hidden border-t-4 border-t-ink shadow-sm mb-6">
             <div className="px-5 py-4 border-b border-steel flex justify-between items-center bg-white">
               <div>
                 <h3 className="text-[16px] font-oswald uppercase tracking-wide m-0 text-ink">{activeLocal.name}</h3>
-                <span className="text-[12.5px] text-steel-2 mt-1 block">{activeLocal.addr}</span>
+                <span className="text-[12.5px] text-steel-2 mt-1 block">{activeLocal.addr} · <span className="font-bold">{activeLocal.zona || 'Sin Zona'}</span></span>
               </div>
             </div>
             
@@ -276,16 +172,14 @@ export default function Auditoria() {
                         <div className="text-[12px] text-steel-2">{eq.ubicacion} · {eq.tipo} ({eq.peso})</div>
                       </div>
                       
-                      <button 
-                        onClick={() => handleOpenModal(eq, isDone)}
-                        className={`flex items-center justify-center gap-2 py-2 px-4 rounded text-[12px] font-bold uppercase tracking-wider transition-colors sm:w-auto w-full ${
+                      <div className={`flex items-center justify-center gap-2 py-2 px-4 rounded text-[11px] font-bold uppercase tracking-wider sm:w-auto w-full border ${
                           isDone 
-                            ? 'bg-green/10 text-[#2e7d32] cursor-default' 
-                            : 'bg-ink text-white hover:bg-black cursor-pointer'
+                            ? 'bg-green/10 text-[#2e7d32] border-green/30' 
+                            : 'bg-paper text-steel-2 border-steel border-dashed'
                         }`}
                       >
-                        {isDone ? '✓ Auditado hoy' : 'Inspeccionar'}
-                      </button>
+                        {isDone ? '✓ Auditado hoy' : 'Esperando lectura NFC...'}
+                      </div>
                     </div>
                   );
                 })
@@ -301,73 +195,6 @@ export default function Auditoria() {
               Finalizar Visita y Volver
             </button>
           )}
-        </div>
-      )}
-
-      {/* MODAL DE AUDITORÍA CON LOS 5 PARÁMETROS */}
-      {showModal && activeEq && (
-        <div className="fixed inset-0 bg-ink/70 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded max-w-[400px] w-full p-5 shadow-xl max-h-[95vh] overflow-y-auto">
-            <h3 className="text-[16px] mb-1 font-oswald uppercase text-ink">Inspección Reglamentaria</h3>
-            <div className="font-mono text-[13px] font-bold text-steel-2 mb-4">#{activeEq.etiqueta}</div>
-            
-            <div className="space-y-3 mb-5">
-              <div>
-                <label className="form-label text-[11px] mb-1">1. Reloj de Presión</label>
-                <div className="flex border border-steel rounded overflow-hidden">
-                  <button type="button" onClick={() => setFormState({...formState, presion: 'ok'})} className={`flex-1 py-2 text-[12px] font-medium border-r border-steel transition-colors cursor-pointer ${formState.presion === 'ok' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Correcta</button>
-                  <button type="button" onClick={() => setFormState({...formState, presion: 'baja'})} className={`flex-1 py-2 text-[12px] font-medium transition-colors cursor-pointer ${formState.presion === 'baja' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Baja</button>
-                </div>
-              </div>
-
-              <div>
-                <label className="form-label text-[11px] mb-1">2. Estado de la Carga</label>
-                <div className="flex border border-steel rounded overflow-hidden">
-                  <button type="button" onClick={() => setFormState({...formState, carga: 'vigente'})} className={`flex-1 py-2 text-[12px] font-medium border-r border-steel transition-colors cursor-pointer ${formState.carga === 'vigente' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Vigente</button>
-                  <button type="button" onClick={() => setFormState({...formState, carga: 'vencido'})} className={`flex-1 py-2 text-[12px] font-medium transition-colors cursor-pointer ${formState.carga === 'vencido' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Vencida</button>
-                </div>
-              </div>
-
-              <div>
-                <label className="form-label text-[11px] mb-1">3. Precinto y Pasador</label>
-                <div className="flex border border-steel rounded overflow-hidden">
-                  <button type="button" onClick={() => setFormState({...formState, precinto: 'intacto'})} className={`flex-1 py-2 text-[12px] font-medium border-r border-steel transition-colors cursor-pointer ${formState.precinto === 'intacto' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Intacto</button>
-                  <button type="button" onClick={() => setFormState({...formState, precinto: 'roto'})} className={`flex-1 py-2 text-[12px] font-medium transition-colors cursor-pointer ${formState.precinto === 'roto' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Roto / Ausente</button>
-                </div>
-              </div>
-
-              <div>
-                <label className="form-label text-[11px] mb-1">4. Accesibilidad y Soporte</label>
-                <div className="flex border border-steel rounded overflow-hidden">
-                  <button type="button" onClick={() => setFormState({...formState, accesibilidad: 'despejado'})} className={`flex-1 py-2 text-[12px] font-medium border-r border-steel transition-colors cursor-pointer ${formState.accesibilidad === 'despejado' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Despejado</button>
-                  <button type="button" onClick={() => setFormState({...formState, accesibilidad: 'obstruido'})} className={`flex-1 py-2 text-[12px] font-medium transition-colors cursor-pointer ${formState.accesibilidad === 'obstruido' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Obstruido</button>
-                </div>
-              </div>
-
-              <div>
-                <label className="form-label text-[11px] mb-1">5. Estado Físico (Cilindro/Manguera)</label>
-                <div className="flex border border-steel rounded overflow-hidden">
-                  <button type="button" onClick={() => setFormState({...formState, estadoFisico: 'optimo'})} className={`flex-1 py-2 text-[12px] font-medium border-r border-steel transition-colors cursor-pointer ${formState.estadoFisico === 'optimo' ? 'bg-ink text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Óptimo</button>
-                  <button type="button" onClick={() => setFormState({...formState, estadoFisico: 'danado'})} className={`flex-1 py-2 text-[12px] font-medium transition-colors cursor-pointer ${formState.estadoFisico === 'danado' ? 'bg-red text-white' : 'bg-paper text-steel-2 hover:bg-steel'}`}>Dañado</button>
-                </div>
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <label className="form-label">Foto de evidencia obligatoria</label>
-              <div className={`relative w-full border border-dashed rounded p-4 flex items-center justify-center gap-2.5 text-[13px] font-medium transition-colors cursor-pointer ${imageFile ? 'border-green bg-green/10 text-[#2e7d32]' : 'border-steel-2 bg-paper text-steel-2 hover:border-ink'}`}>
-                <span>{imageFile ? '✓ Fotografía capturada' : '📸 Tocar para abrir cámara'}</span>
-                <input type="file" accept="image/*" capture="environment" onChange={handlePhotoCapture} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <button onClick={handleCloseModal} disabled={uploading} className="btn btn-outline flex-1 cursor-pointer">Cancelar</button>
-              <button onClick={handleSubmitControl} disabled={uploading} className="btn btn-primary flex-1 cursor-pointer">
-                {uploading ? 'Subiendo...' : 'Registrar'}
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>

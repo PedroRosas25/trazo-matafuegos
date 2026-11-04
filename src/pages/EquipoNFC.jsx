@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { uploadToCloudinary } from '../services/cloudinary';
 
 export default function EquipoNFC() {
-  const { id: etiquetaNFC } = useParams(); // Atrapa el "EXT-0140" de la URL
+  const { id: etiquetaNFC } = useParams();
   const navigate = useNavigate();
   const { userData } = useAuth();
   
@@ -14,7 +14,6 @@ export default function EquipoNFC() {
   const [equipo, setEquipo] = useState(null);
   const [localPadre, setLocalPadre] = useState(null);
   
-  // EL NUEVO ESTADO CON LOS 5 PARÁMETROS REGLAMENTARIOS
   const [formState, setFormState] = useState({ 
     presion: null, 
     carga: null, 
@@ -29,7 +28,6 @@ export default function EquipoNFC() {
 
   useEffect(() => {
     const fetchEquipoInfo = async () => {
-      // Validamos que sea un técnico autorizado de una empresa
       if (!userData?.empresaId || userData.rol !== 'tecnico') {
         setLoading(false);
         return;
@@ -44,7 +42,6 @@ export default function EquipoNFC() {
 
         querySnapshot.forEach((doc) => {
           const data = doc.data();
-          // Buscamos el equipo que coincida con la etiqueta de la URL
           const eq = data.equipos?.find(e => e.etiqueta === etiquetaNFC);
           if (eq) {
             foundEquipo = eq;
@@ -69,25 +66,20 @@ export default function EquipoNFC() {
     if (file) setImageFile(file);
   };
 
-  // 1. EL PATOVICA NFC (Anti-Trampa)
   const iniciarValidacionFisica = async () => {
-    // Validamos que haya completado los 5 controles
     if (!formState.presion || !formState.carga || !formState.precinto || !formState.accesibilidad || !formState.estadoFisico || !imageFile) {
       alert("⚠️ Completá todos los controles físicos y la foto primero.");
       return;
     }
 
-    // Comprueba si el navegador tiene habilitada la API de NFC (Android/Chrome)
     if ('NDEFReader' in window) {
       try {
         setEsperandoNFC(true);
         const ndef = new window.NDEFReader();
         await ndef.scan();
         
-        // El celular queda escuchando. Cuando toca la etiqueta, se dispara este evento:
-        ndef.onreading = (event) => {
+        ndef.onreading = () => {
           setEsperandoNFC(false);
-          // Si leyó el sticker, significa que está físicamente ahí. Guardamos en BD.
           ejecutarGuardado(); 
         };
 
@@ -99,13 +91,11 @@ export default function EquipoNFC() {
         alert("Tu navegador bloqueó el lector NFC. Por favor, dale los permisos necesarios.");
       }
     } else {
-      // Fallback para iOS o navegadores de PC
-      const confirmar = window.confirm("Tu dispositivo (iOS/PC) no soporta el escaneo NFC automático.\n\nAl tocar ACEPTAR, declarás bajo juramento estar físicamente frente al matafuego.");
+      const confirmar = window.confirm("Tu dispositivo no soporta el escaneo NFC automático.\n\nAl tocar ACEPTAR, declarás bajo juramento estar físicamente frente al matafuego.");
       if (confirmar) ejecutarGuardado();
     }
   };
 
-  // 2. GUARDADO FINAL EN BASE DE DATOS
   const ejecutarGuardado = async () => {
     setUploading(true);
 
@@ -118,8 +108,6 @@ export default function EquipoNFC() {
 
       const updatedEquipos = localPadre.equipos.map(eq => {
         if (eq.etiqueta === equipo.etiqueta) {
-          
-          // 1. Armamos el objeto con la memoria del día de hoy y los 5 parámetros
           const nuevoRegistro = {
             fecha: hoy,
             presion: formState.presion,
@@ -149,8 +137,6 @@ export default function EquipoNFC() {
 
       setEquipo({ ...equipo, fechaControl: hoy, fotoEvidencia: photoURL });
       alert("¡Auditoría sellada y guardada con éxito!");
-      
-      // Opcional: Devolverlo a su ruta del día
       navigate('/auditoria');
       
     } catch (error) {
@@ -170,7 +156,6 @@ export default function EquipoNFC() {
   return (
     <div className="min-h-screen bg-paper p-4 md:p-8 font-sans pb-24 relative">
       
-      {/* PANTALLA DE CARGA NFC SUPERPUESTA */}
       {esperandoNFC && (
         <div className="fixed inset-0 bg-ink/90 z-50 flex flex-col items-center justify-center p-6 text-center animate-pulse">
           <div className="w-24 h-24 bg-paper rounded-full flex items-center justify-center mb-6">
@@ -182,7 +167,6 @@ export default function EquipoNFC() {
         </div>
       )}
 
-      {/* CABECERA DEL MATAFUEGO */}
       <div className="card-base p-6 mb-5 shadow-sm border-t-4 border-ink bg-white">
         <div className="flex justify-between items-start mb-4">
           <div>
@@ -206,7 +190,6 @@ export default function EquipoNFC() {
         </div>
       </div>
 
-      {/* FORMULARIO DE AUDITORÍA */}
       {yaRevisadoHoy ? (
         <div className="card-base p-6 text-center border border-green bg-green/5">
           <div className="w-12 h-12 bg-green text-white rounded-full flex items-center justify-center mx-auto mb-3 text-xl font-bold">✓</div>
@@ -269,11 +252,7 @@ export default function EquipoNFC() {
             </div>
           </div>
 
-          <button 
-            onClick={iniciarValidacionFisica} 
-            disabled={uploading} 
-            className="btn btn-ink w-full py-3.5 text-[14px] font-bold flex items-center justify-center gap-2 cursor-pointer"
-          >
+          <button onClick={iniciarValidacionFisica} disabled={uploading} className="btn btn-ink w-full py-3.5 text-[14px] font-bold flex items-center justify-center gap-2 cursor-pointer">
             {uploading ? 'Procesando reporte...' : 'Validar con NFC y Guardar'}
           </button>
         </div>
