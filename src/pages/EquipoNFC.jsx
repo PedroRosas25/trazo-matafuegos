@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { collection, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -23,22 +23,9 @@ export default function EquipoNFC() {
   });
   const [imageFile, setImageFile] = useState(null);
   
-  const [esperandoNFC, setEsperandoNFC] = useState(false);
   const [uploading, setUploading] = useState(false);
-
-  // NUEVOS ESTADOS: Control de edición de 1 minuto
   const [editandoReciente, setEditandoReciente] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
-
-  const nfcAbortController = useRef(null);
-
-  useEffect(() => {
-    return () => {
-      if (nfcAbortController.current) {
-        nfcAbortController.current.abort();
-      }
-    };
-  }, []);
 
   useEffect(() => {
     const fetchEquipoInfo = async () => {
@@ -105,49 +92,17 @@ export default function EquipoNFC() {
       accesibilidad: equipo.estadoAccesibilidad,
       estadoFisico: equipo.estadoFisico
     });
-    setImageFile(null); // Forzamos a que use la foto guardada o saque una nueva
+    setImageFile(null);
     setEditandoReciente(true);
   };
 
-  const iniciarValidacionFisica = async () => {
-    // Verificamos que tenga foto (nueva o la que ya había sacado en caso de edición)
+  // NUEVO: Validación simple sin NFC extra
+  const handleGuardar = async () => {
     if (!formState.presion || !formState.carga || !formState.precinto || !formState.accesibilidad || !formState.estadoFisico || (!imageFile && !equipo?.fotoEvidencia)) {
       alert("⚠️ Completá todos los controles físicos y asegurate de tener evidencia fotográfica.");
       return;
     }
-
-    if ('NDEFReader' in window) {
-      try {
-        setEsperandoNFC(true);
-        const ndef = new window.NDEFReader();
-        nfcAbortController.current = new AbortController();
-
-        await ndef.scan({ signal: nfcAbortController.current.signal });
-        
-        ndef.onreading = () => {
-          if (nfcAbortController.current) nfcAbortController.current.abort();
-          setEsperandoNFC(false);
-          ejecutarGuardado(); 
-        };
-
-        ndef.onreadingerror = () => {
-          alert("El chip se movió rápido. Dejá el celular apoyado sobre la etiqueta.");
-        };
-      } catch (error) {
-        setEsperandoNFC(false);
-        alert("Tu navegador bloqueó el lector NFC. Por favor, dale los permisos necesarios.");
-      }
-    } else {
-      const confirmar = window.confirm("Tu dispositivo no soporta el escaneo NFC automático.\n\nAl tocar ACEPTAR, declarás bajo juramento estar físicamente frente al matafuego.");
-      if (confirmar) ejecutarGuardado();
-    }
-  };
-
-  const cancelarNFC = () => {
-    if (nfcAbortController.current) {
-      nfcAbortController.current.abort();
-    }
-    setEsperandoNFC(false);
+    await ejecutarGuardado();
   };
 
   const ejecutarGuardado = async () => {
@@ -180,7 +135,6 @@ export default function EquipoNFC() {
             timestampControl: tsGuardado
           };
 
-          // Si estamos editando, filtramos el registro anterior de HOY para no duplicarlo en el historial PDF
           const historialSinHoy = (eq.historial || []).filter(h => h.fecha !== hoy);
 
           return { 
@@ -201,7 +155,6 @@ export default function EquipoNFC() {
 
       await updateDoc(doc(db, "locales", localPadre.id), { equipos: updatedEquipos });
 
-      // Actualizamos estado local y desactivamos modo edición
       setEquipo({ 
         ...equipo, 
         fechaControl: hoy, 
@@ -227,18 +180,6 @@ export default function EquipoNFC() {
 
   return (
     <div className="min-h-screen bg-paper p-4 md:p-8 font-sans pb-24 relative">
-      
-      {esperandoNFC && (
-        <div className="fixed inset-0 bg-ink/90 z-50 flex flex-col items-center justify-center p-6 text-center animate-pulse">
-          <div className="w-24 h-24 bg-paper rounded-full flex items-center justify-center mb-6">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-10 h-10 text-ink"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
-          </div>
-          <h2 className="text-white font-oswald text-2xl uppercase tracking-wide mb-2">Acercá el celular al sticker</h2>
-          <p className="text-steel-2 text-sm">Mantenelo apoyado unos segundos para validar tu presencia física y sellar la auditoría.</p>
-          <button onClick={cancelarNFC} className="mt-8 text-red text-sm font-bold uppercase tracking-wider cursor-pointer">Cancelar</button>
-        </div>
-      )}
-
       <div className="card-base p-6 mb-5 shadow-sm border-t-4 border-ink bg-white">
         <div className="flex justify-between items-start mb-4">
           <div>
@@ -268,7 +209,6 @@ export default function EquipoNFC() {
           <h3 className="font-oswald text-[16px] text-[#2e7d32] uppercase mb-1">Matafuego Inspeccionado</h3>
           <p className="text-[13px] text-steel-2">Este equipo ya fue revisado y reportado en el sistema el día de hoy.</p>
           
-          {/* VENTANA DE 1 MINUTO PARA CORRECCIONES */}
           {equipo.timestampControl && (
             <div className="mt-4 pt-4 border-t border-green/20">
               {timeLeft > 0 ? (
@@ -354,8 +294,8 @@ export default function EquipoNFC() {
             {editandoReciente && (
                <button onClick={() => setEditandoReciente(false)} disabled={uploading} className="btn btn-outline flex-1 cursor-pointer">Cancelar Edición</button>
             )}
-            <button onClick={iniciarValidacionFisica} disabled={uploading} className="btn btn-ink flex-[2] py-3.5 text-[14px] font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm">
-              {uploading ? 'Procesando reporte...' : 'Validar con NFC y Guardar'}
+            <button onClick={handleGuardar} disabled={uploading} className="btn btn-ink flex-[2] py-3.5 text-[14px] font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm">
+              {uploading ? 'Procesando reporte...' : 'Guardar Auditoría'}
             </button>
           </div>
         </div>
