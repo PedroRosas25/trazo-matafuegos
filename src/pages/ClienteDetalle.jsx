@@ -19,7 +19,12 @@ export default function ClienteDetalle() {
   const [showEditDueñoModal, setShowEditDueñoModal] = useState(false);
   const [visorImagen, setVisorImagen] = useState(null);
   
-  // Estado para el filtro del PDF
+  // Estados para grabar NFC
+  const [grabandoNFC, setGrabandoNFC] = useState(false);
+  const [equipoAGrabar, setEquipoAGrabar] = useState(null);
+  const [abortController, setAbortController] = useState(null);
+
+  // Filtro del PDF
   const [mesesFiltro, setMesesFiltro] = useState(12);
 
   // Formularios
@@ -30,7 +35,6 @@ export default function ClienteDetalle() {
   const [editingEqIndex, setEditingEqIndex] = useState(null); 
 
   const fetchClienteData = async () => {
-    // Agregamos la validación del empresaId para que la regla de Firestore lo apruebe
     if (!id || !userData?.empresaId) return;
     
     try {
@@ -38,7 +42,6 @@ export default function ClienteDetalle() {
       const localSnap = await getDoc(localRef);
       if (localSnap.exists()) setLocal({ id: localSnap.id, ...localSnap.data() });
 
-      // Inyectamos el filtro de empresaId en la consulta
       const dueñosQuery = query(
         collection(db, "usuarios"), 
         where("localId", "==", id),
@@ -55,25 +58,48 @@ export default function ClienteDetalle() {
 
   useEffect(() => {
     fetchClienteData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, userData]); // Sumamos userData a las dependencias
+  }, [id, userData]); 
 
+  // ===================== MOTOR DE GRABADO NFC =====================
   const handleGrabarNFC = async (etiqueta) => {
     if (!('NDEFReader' in window)) {
       alert("❌ Tu navegador no soporta grabar chips NFC. Usá Google Chrome en un celular Android.");
       return;
     }
 
+    const controller = new AbortController();
+    setAbortController(controller);
+    setEquipoAGrabar(etiqueta);
+    setGrabandoNFC(true);
+
     try {
       const urlFinal = `${window.location.origin}/nfc/${etiqueta}`;
       const ndef = new window.NDEFReader();
-      alert(`⏳ Apoyá el celular sobre el sticker NFC en blanco para grabar el equipo ${etiqueta}...`);
-      await ndef.write({ records: [{ recordType: "url", data: urlFinal }] });
+      
+      // Escribimos en el chip con la señal de aborto vinculada
+      await ndef.write(
+        { records: [{ recordType: "url", data: urlFinal }] },
+        { signal: controller.signal }
+      );
+      
+      setGrabandoNFC(false);
+      setEquipoAGrabar(null);
       alert(`✅ ¡Sticker grabado exitosamente con la ruta de ${etiqueta}! Ya podés pegarlo en el matafuego.`);
     } catch (error) {
-      console.error("Error al grabar NFC:", error);
-      alert("❌ Error al grabar. Mantené el celular quieto sobre el chip hasta que confirme.");
+      setGrabandoNFC(false);
+      setEquipoAGrabar(null);
+      // Si el error no fue provocado por el usuario cancelando, mostramos la alerta
+      if (error.name !== 'AbortError') {
+        console.error("Error al grabar NFC:", error);
+        alert("❌ Error al grabar. Asegurate de mantener el celular quieto sobre el chip.");
+      }
     }
+  };
+
+  const cancelarGrabado = () => {
+    if (abortController) abortController.abort();
+    setGrabandoNFC(false);
+    setEquipoAGrabar(null);
   };
 
   // ===================== CRUD MATAFUEGOS =====================
@@ -94,7 +120,6 @@ export default function ClienteDetalle() {
         equiposActualizados[editingEqIndex] = { 
           ...equiposActualizados[editingEqIndex], 
           ...datosFormulario,
-          // REGLA DE NEGOCIO: Si el admin lo edita (pasa por taller), se "curan" las 5 alertas del técnico
           estadoPresion: 'ok',
           estadoCarga: 'vigente',
           estadoPrecinto: 'intacto',
@@ -234,9 +259,6 @@ export default function ClienteDetalle() {
     else vencidos++;
   });
 
-  // ==========================================
-  // MOTOR DE CÁLCULO HISTÓRICO PARA EL PDF
-  // ==========================================
   const fechaLimite = new Date();
   fechaLimite.setMonth(fechaLimite.getMonth() - mesesFiltro);
 
@@ -272,6 +294,20 @@ export default function ClienteDetalle() {
 
   return (
     <>
+      {/* PANTALLA DE CARGA NFC PARA GRABAR SUPERPUESTA */}
+      {grabandoNFC && (
+        <div className="fixed inset-0 bg-ink/90 z-50 flex flex-col items-center justify-center p-6 text-center animate-pulse">
+          <div className="w-24 h-24 bg-paper rounded-full flex items-center justify-center mb-6 shadow-lg">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-10 h-10 text-ink"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+          </div>
+          <h2 className="text-white font-oswald text-2xl uppercase tracking-wide mb-2">Apoyá el chip en blanco</h2>
+          <p className="text-steel-2 text-sm max-w-[300px] mx-auto">
+            Configurando el sticker para el equipo <span className="font-bold text-white">#{equipoAGrabar}</span>. Mantené el celular quieto hasta que confirmemos la grabación.
+          </p>
+          <button onClick={cancelarGrabado} className="mt-8 text-red text-sm font-bold uppercase tracking-wider cursor-pointer">Cancelar</button>
+        </div>
+      )}
+
       <div className="pb-20 font-sans print:hidden">
         <button onClick={() => navigate('/dashboard')} className="text-steel-2 text-[13px] hover:text-ink mb-6 flex items-center gap-2 font-medium bg-transparent border-none p-0 cursor-pointer">
           <span className="text-lg leading-none">&lsaquo;</span> Volver al Panel
@@ -302,7 +338,7 @@ export default function ClienteDetalle() {
               </button>
             </div>
             
-            <button onClick={() => setShowEquipoModal(true)} className="btn btn-ink px-5 py-2.5 text-[13px] font-bold">
+            <button onClick={() => setShowEquipoModal(true)} className="btn btn-ink px-5 py-2.5 text-[13px] font-bold cursor-pointer">
               + Añadir Matafuego
             </button>
           </div>
@@ -391,13 +427,13 @@ export default function ClienteDetalle() {
                       <td className="px-5 py-4 text-right flex flex-col gap-1 items-end">
                         <button 
                           onClick={() => handleGrabarNFC(eq.etiqueta)} 
-                          className="text-[10px] uppercase font-bold text-white bg-ink hover:bg-black transition-colors px-2 py-1 rounded w-[90px] text-center"
+                          className="text-[10px] uppercase font-bold text-white bg-ink hover:bg-black transition-colors px-2 py-1 rounded w-[90px] text-center cursor-pointer"
                         >
                           Grabar NFC
                         </button>
                         <button 
                           onClick={() => handleEditEquipoClick(eq, idx)} 
-                          className="text-[10px] uppercase font-bold text-steel-2 hover:text-ink transition-all px-2 py-1 bg-white border border-steel rounded w-[90px] text-center"
+                          className="text-[10px] uppercase font-bold text-steel-2 hover:text-ink transition-all px-2 py-1 bg-white border border-steel rounded w-[90px] text-center cursor-pointer"
                         >
                           Editar
                         </button>
@@ -420,7 +456,7 @@ export default function ClienteDetalle() {
             {dueños.length === 0 ? (
               <div className="text-center">
                 <p className="text-[13.5px] text-steel-2 mb-4">Ningún usuario tiene acceso al panel de este local todavía.</p>
-                <button onClick={() => setShowDueñoModal(true)} className="btn border border-ink text-ink font-bold px-6 py-2 text-[13px] hover:bg-paper w-full max-w-[300px]">
+                <button onClick={() => setShowDueñoModal(true)} className="btn border border-ink text-ink font-bold px-6 py-2 text-[13px] hover:bg-paper w-full max-w-[300px] cursor-pointer">
                   Vincular un Dueño
                 </button>
               </div>
@@ -438,7 +474,7 @@ export default function ClienteDetalle() {
                     </div>
                   </div>
                 ))}
-                <button onClick={() => setShowDueñoModal(true)} className="text-[12px] font-bold text-ink hover:underline mt-2 inline-block">
+                <button onClick={() => setShowDueñoModal(true)} className="text-[12px] font-bold text-ink hover:underline mt-2 inline-block bg-transparent border-none p-0 cursor-pointer">
                   + Vincular otro acceso
                 </button>
               </div>
@@ -480,11 +516,11 @@ export default function ClienteDetalle() {
 
                 <div className="flex gap-2 flex-col sm:flex-row">
                   {editingEqIndex !== null && (
-                    <button type="button" onClick={handleDeleteEquipo} className="btn border border-red text-red hover:bg-red/10 flex-1 mb-2 sm:mb-0">Dar de Baja</button>
+                    <button type="button" onClick={handleDeleteEquipo} className="btn border border-red text-red hover:bg-red/10 flex-1 mb-2 sm:mb-0 cursor-pointer">Dar de Baja</button>
                   )}
                   <div className="flex gap-2 flex-1">
-                    <button type="button" onClick={cerrarModalEquipo} className="btn btn-outline flex-1">Cancelar</button>
-                    <button type="submit" className="btn btn-ink flex-1">Guardar</button>
+                    <button type="button" onClick={cerrarModalEquipo} className="btn btn-outline flex-1 cursor-pointer">Cancelar</button>
+                    <button type="submit" className="btn btn-ink flex-1 cursor-pointer">Guardar</button>
                   </div>
                 </div>
               </form>
@@ -505,10 +541,10 @@ export default function ClienteDetalle() {
                 <label className="form-label">Teléfono de contacto</label>
                 <input type="tel" className="form-input mb-6" value={editingDueño.telefono || ''} onChange={e => setEditingDueño({...editingDueño, telefono: e.target.value})} />
                 <div className="flex gap-2 flex-col sm:flex-row">
-                  <button type="button" onClick={handleDeleteDueño} className="btn border border-red text-red hover:bg-red/10 flex-1 mb-2 sm:mb-0">Revocar Acceso</button>
+                  <button type="button" onClick={handleDeleteDueño} className="btn border border-red text-red hover:bg-red/10 flex-1 mb-2 sm:mb-0 cursor-pointer">Revocar Acceso</button>
                   <div className="flex gap-2 flex-1">
-                    <button type="button" onClick={() => setShowEditDueñoModal(false)} className="btn btn-outline flex-1">Cancelar</button>
-                    <button type="submit" className="btn btn-primary flex-1">Guardar</button>
+                    <button type="button" onClick={() => setShowEditDueñoModal(false)} className="btn btn-outline flex-1 cursor-pointer">Cancelar</button>
+                    <button type="submit" className="btn btn-primary flex-1 cursor-pointer">Guardar</button>
                   </div>
                 </div>
               </form>
@@ -529,15 +565,15 @@ export default function ClienteDetalle() {
                 <label className="form-label">Teléfono de contacto</label>
                 <input type="tel" className="form-input mb-6" value={dueñoForm.telefono} onChange={e => setDueñoForm({...dueñoForm, telefono: e.target.value})} />
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setShowDueñoModal(false)} className="btn btn-outline flex-1">Cancelar</button>
-                  <button type="submit" className="btn btn-primary flex-1">Generar Acceso</button>
+                  <button type="button" onClick={() => setShowDueñoModal(false)} className="btn btn-outline flex-1 cursor-pointer">Cancelar</button>
+                  <button type="submit" className="btn btn-primary flex-1 cursor-pointer">Generar Acceso</button>
                 </div>
               </form>
             </div>
           </div>
         )}
 
-        {/* VISOR DE IMÁGENES NATIVO SUPERPUESTO */}
+        {/* VISOR DE IMÁGENES */}
         {visorImagen && (
           <div className="fixed inset-0 bg-ink/95 z-[999] flex flex-col items-center justify-center p-4" onClick={() => setVisorImagen(null)}>
             <button 
@@ -556,9 +592,7 @@ export default function ClienteDetalle() {
         )}
       </div>
 
-      {/* ========================================================= */}
-      {/* VISTA EXCLUSIVA PARA EL PDF (BITÁCORA HISTÓRICA) */}
-      {/* ========================================================= */}
+      {/* VISTA EXCLUSIVA PARA EL PDF (Mantenida intacta) */}
       <div className="hidden print:block bg-white text-black font-sans p-2">
         <div className="flex justify-between items-end border-b-2 border-black pb-4 mb-8">
           <div>
@@ -566,15 +600,11 @@ export default function ClienteDetalle() {
               <span className="w-8 h-8 bg-red text-white flex items-center justify-center font-bold rounded-sm" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>T</span>
               TRAZO
             </div>
-            <p className="text-[12px] text-gray-500 uppercase tracking-widest">
-              Reporte Histórico de Operaciones
-            </p>
+            <p className="text-[12px] text-gray-500 uppercase tracking-widest">Reporte Histórico de Operaciones</p>
           </div>
           <div className="text-right">
             <h2 className="text-xl font-bold uppercase mb-1">Bitácora de Auditorías</h2>
-            <p className="text-sm font-mono text-gray-600">
-              Período: {mesesFiltro === 999 ? 'Todo el historial' : `Últimos ${mesesFiltro} meses`}
-            </p>
+            <p className="text-sm font-mono text-gray-600">Período: {mesesFiltro === 999 ? 'Todo el historial' : `Últimos ${mesesFiltro} meses`}</p>
             <p className="text-xs font-mono text-gray-500 mt-1">Emisión: {new Date().toLocaleDateString('es-AR')}</p>
           </div>
         </div>
@@ -609,10 +639,7 @@ export default function ClienteDetalle() {
                 <tr key={idx} className="border-b border-gray-300">
                   <td className="py-4 px-1 font-mono font-bold">{reg.fecha}</td>
                   <td className="py-4 px-1 font-mono">{reg.etiqueta}</td>
-                  <td className="py-4 px-1">
-                    <span className="font-bold">{reg.ubicacion}</span><br/>
-                    <span className="text-gray-600">{reg.tipo}</span>
-                  </td>
+                  <td className="py-4 px-1"><span className="font-bold">{reg.ubicacion}</span><br/><span className="text-gray-600">{reg.tipo}</span></td>
                   <td className="py-4 px-1 text-center leading-tight uppercase text-[9px]">
                     <div className={reg.presion === 'ok' ? '' : 'text-red font-bold'}>Presión: {reg.presion === 'ok' ? 'OK' : 'BAJA'}</div>
                     <div className={reg.carga === 'vigente' ? '' : 'text-red font-bold'}>Carga: {reg.carga === 'vigente' ? 'VIGENTE' : 'VENCIDA'}</div>
