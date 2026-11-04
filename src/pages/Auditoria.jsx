@@ -6,11 +6,12 @@ import { useAuth } from '../context/AuthContext';
 export default function Auditoria() {
   const { userData } = useAuth();
   
-  const [ruta, setRuta] = useState(null);
+  // NUEVO: Ahora guardamos un ARRAY de rutas, no solo una
+  const [rutasAsignadas, setRutasAsignadas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeLocal, setActiveLocal] = useState(null);
 
-  const fetchRuta = async () => {
+  const fetchRutas = async () => {
     if (!userData || !userData.email) return;
     setLoading(true);
     try {
@@ -22,23 +23,24 @@ export default function Auditoria() {
       const snap = await getDocs(q);
       
       if (!snap.empty) {
-        setRuta({ id: snap.docs[0].id, ...snap.docs[0].data() });
+        // Guardamos TODAS las rutas que tenga asignadas este técnico
+        setRutasAsignadas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       } else {
-        setRuta(null);
+        setRutasAsignadas([]);
       }
     } catch (error) {
-      console.error("Error obteniendo la ruta:", error);
+      console.error("Error obteniendo las rutas:", error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    // Escuchamos cuando el técnico vuelve de escanear un NFC para refrescar la vista
-    fetchRuta();
+    fetchRutas();
   }, [userData]);
 
-  const handleOpenStop = async (parada) => {
+  // NUEVO: Pasamos el rutaId para saber a qué ruta pertenece este local
+  const handleOpenStop = async (parada, rutaId) => {
     setLoading(true);
     try {
       const docRef = doc(db, "locales", parada.localId);
@@ -48,7 +50,8 @@ export default function Auditoria() {
         setActiveLocal({ 
           id: docSnap.id, 
           ...docSnap.data(),
-          estadoParada: parada.estado 
+          estadoParada: parada.estado,
+          rutaIdPadre: rutaId // Guardamos la referencia de la ruta de origen
         });
       } else {
         alert("El local fue eliminado del sistema central.");
@@ -62,24 +65,33 @@ export default function Auditoria() {
 
   const handleBack = () => {
     setActiveLocal(null);
-    fetchRuta(); 
+    fetchRutas(); 
   };
 
   const handleFinalizarVisita = async () => {
     try {
       setLoading(true);
-      const nuevasParadas = ruta.paradas.map(p => {
+      // Buscamos cuál es la ruta a la que pertenecía este local
+      const rutaPadre = rutasAsignadas.find(r => r.id === activeLocal.rutaIdPadre);
+      
+      if (!rutaPadre) {
+        throw new Error("No se encontró la ruta original");
+      }
+
+      const nuevasParadas = rutaPadre.paradas.map(p => {
         if (p.localId === activeLocal.id) {
           return { ...p, estado: 'completado' };
         }
         return p;
       });
 
-      await updateDoc(doc(db, "rutas", ruta.id), { paradas: nuevasParadas });
+      // Actualizamos solo esa ruta en particular
+      await updateDoc(doc(db, "rutas", rutaPadre.id), { paradas: nuevasParadas });
       alert("¡Visita finalizada! Progreso enviado al Gestor.");
       handleBack();
     } catch (error) {
       console.error("Error finalizando visita:", error);
+      alert("Error al finalizar la visita.");
       setLoading(false);
     }
   };
@@ -87,66 +99,87 @@ export default function Auditoria() {
   if (loading) return <div className="p-6 text-steel-2 font-mono text-sm">Sincronizando con la central operativa...</div>;
 
   const hoy = new Date().toLocaleDateString('es-AR');
+  const totalParadas = rutasAsignadas.reduce((acc, r) => acc + r.paradas.length, 0);
 
   return (
     <div className="pb-20 font-sans">
       
-      {/* VISTA 1: LISTADO DE LA RUTA */}
+      {/* VISTA 1: LISTADO DE TODAS LAS RUTAS */}
       {!activeLocal && (
         <>
           <div className="mb-6">
-            <h1 className="text-[21px] text-ink font-oswald uppercase tracking-wide font-semibold">Mi ruta de hoy</h1>
+            <h1 className="text-[21px] text-ink font-oswald uppercase tracking-wide font-semibold">Mi recorrido de hoy</h1>
             <p className="text-steel-2 text-[13.5px] mt-1.5">
-              {ruta ? `${ruta.paradas.length} paradas asignadas` : 'Sin asignaciones activas'}
+              {rutasAsignadas.length > 0 
+                ? `${totalParadas} paradas en ${rutasAsignadas.length} ruta(s)` 
+                : 'Sin asignaciones activas'}
             </p>
           </div>
 
-          {!ruta || ruta.paradas.length === 0 ? (
+          {rutasAsignadas.length === 0 ? (
             <div className="bg-paper border border-steel rounded-md p-6 text-center">
               <p className="text-ink text-[14px] font-medium mb-1">Día libre o sin rutas asignadas.</p>
               <p className="text-steel-2 text-[13px]">El equipo de logística todavía no te armó el recorrido de hoy.</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {ruta.paradas.map((parada, index) => {
-                const isCompletado = parada.estado === 'completado';
-                return (
-                  <div 
-                    key={parada.localId} 
-                    onClick={() => handleOpenStop(parada)}
-                    className={`card-base p-4 flex justify-between items-center gap-3 cursor-pointer hover:border-ink transition-colors ${isCompletado ? 'opacity-60 bg-paper' : 'bg-white'}`}
-                  >
-                    <div className="flex gap-3 items-center">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${isCompletado ? 'bg-green text-white' : 'bg-ink text-white'}`}>
-                        {isCompletado ? '✓' : index + 1}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-[14.5px] mb-0.5 text-ink">{parada.nombre}</div>
-                        <div className="text-[12px] text-steel-2">{parada.direccion} · <span className="font-bold">{parada.zona || 'Sin Zona'}</span></div>
-                      </div>
-                    </div>
-                    <div className="text-[11px] font-bold uppercase tracking-wider">
-                      {isCompletado ? <span className="text-green">Completado</span> : <span className="text-amber">Pendiente</span>}
-                    </div>
+            <div className="space-y-6">
+              {rutasAsignadas.map((rutaObj, idxRuta) => (
+                <div key={rutaObj.id}>
+                  
+                  {/* Título de bloque si hay más de una ruta */}
+                  {rutasAsignadas.length > 1 && (
+                    <h2 className="text-[12px] font-bold text-steel-2 uppercase tracking-wider mb-3">
+                      Bloque de Ruta {idxRuta + 1}
+                    </h2>
+                  )}
+
+                  <div className="space-y-3">
+                    {rutaObj.paradas.length === 0 && (
+                      <p className="text-[13px] text-steel-2 italic">Bloque vacío.</p>
+                    )}
+                    
+                    {rutaObj.paradas.map((parada, index) => {
+                      const isCompletado = parada.estado === 'completado';
+                      return (
+                        <div 
+                          key={parada.localId} 
+                          onClick={() => handleOpenStop(parada, rutaObj.id)}
+                          className={`card-base p-4 flex justify-between items-center gap-3 cursor-pointer hover:border-ink transition-colors ${isCompletado ? 'opacity-60 bg-paper' : 'bg-white'}`}
+                        >
+                          <div className="flex gap-3 items-center">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${isCompletado ? 'bg-green text-white' : 'bg-ink text-white'}`}>
+                              {isCompletado ? '✓' : index + 1}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-[14.5px] mb-0.5 text-ink">{parada.nombre}</div>
+                              <div className="text-[12px] text-steel-2">{parada.direccion} · <span className="font-bold">{parada.zona || 'Sin Zona'}</span></div>
+                            </div>
+                          </div>
+                          <div className="text-[11px] font-bold uppercase tracking-wider">
+                            {isCompletado ? <span className="text-green">Completado</span> : <span className="text-amber">Pendiente</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
         </>
       )}
 
-      {/* VISTA 2: CHECKLIST DEL LOCAL (Solo lectura, obliga a usar NFC) */}
+      {/* VISTA 2: CHECKLIST DEL LOCAL (Obliga a usar NFC) */}
       {activeLocal && (
         <div>
           <button onClick={handleBack} className="inline-flex items-center gap-1.5 text-[13px] text-steel-2 cursor-pointer mb-4 bg-transparent border-none p-0 hover:text-ink font-medium">
-            <span className="text-lg leading-none">&lsaquo;</span> Volver a mi ruta
+            <span className="text-lg leading-none">&lsaquo;</span> Volver al recorrido
           </button>
           
           <div className="bg-[#fff9e6] border-l-4 border-amber p-4 mb-4 rounded shadow-sm">
             <p className="text-[13px] text-ink font-medium m-0 flex items-center gap-2">
               <span className="text-lg">⚠️</span>
-              Para realizar el control de campo, debés apoyar tu celular sobre el chip NFC de cada matafuego.
+              Para realizar el control, debés apoyar tu celular sobre el chip NFC de cada matafuego.
             </p>
           </div>
 
