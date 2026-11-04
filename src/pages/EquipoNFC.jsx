@@ -26,10 +26,12 @@ export default function EquipoNFC() {
   const [esperandoNFC, setEsperandoNFC] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // NUEVO: Controlador para apagar la antena NFC
+  // NUEVOS ESTADOS: Control de edición de 1 minuto
+  const [editandoReciente, setEditandoReciente] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(0);
+
   const nfcAbortController = useRef(null);
 
-  // NUEVO: Medida de seguridad. Si el técnico cierra la app, apagamos la antena.
   useEffect(() => {
     return () => {
       if (nfcAbortController.current) {
@@ -73,14 +75,44 @@ export default function EquipoNFC() {
     fetchEquipoInfo();
   }, [etiquetaNFC, userData]);
 
+  // MOTOR DEL CONTADOR DE 1 MINUTO
+  useEffect(() => {
+    const hoy = new Date().toLocaleDateString('es-AR');
+    if (equipo && equipo.fechaControl === hoy && equipo.timestampControl && !editandoReciente) {
+      const calcTime = () => Math.max(0, 60 - Math.floor((Date.now() - equipo.timestampControl) / 1000));
+      
+      setTimeLeft(calcTime());
+      const t = setInterval(() => {
+        const remain = calcTime();
+        setTimeLeft(remain);
+        if (remain <= 0) clearInterval(t);
+      }, 1000);
+      
+      return () => clearInterval(t);
+    }
+  }, [equipo, editandoReciente]);
+
   const handlePhotoCapture = (e) => {
     const file = e.target.files[0];
     if (file) setImageFile(file);
   };
 
+  const handleHabilitarEdicion = () => {
+    setFormState({
+      presion: equipo.estadoPresion,
+      carga: equipo.estadoCarga,
+      precinto: equipo.estadoPrecinto,
+      accesibilidad: equipo.estadoAccesibilidad,
+      estadoFisico: equipo.estadoFisico
+    });
+    setImageFile(null); // Forzamos a que use la foto guardada o saque una nueva
+    setEditandoReciente(true);
+  };
+
   const iniciarValidacionFisica = async () => {
-    if (!formState.presion || !formState.carga || !formState.precinto || !formState.accesibilidad || !formState.estadoFisico || !imageFile) {
-      alert("⚠️ Completá todos los controles físicos y la foto primero.");
+    // Verificamos que tenga foto (nueva o la que ya había sacado en caso de edición)
+    if (!formState.presion || !formState.carga || !formState.precinto || !formState.accesibilidad || !formState.estadoFisico || (!imageFile && !equipo?.fotoEvidencia)) {
+      alert("⚠️ Completá todos los controles físicos y asegurate de tener evidencia fotográfica.");
       return;
     }
 
@@ -88,18 +120,12 @@ export default function EquipoNFC() {
       try {
         setEsperandoNFC(true);
         const ndef = new window.NDEFReader();
-        
-        // Creamos el interruptor de apagado
         nfcAbortController.current = new AbortController();
 
-        // Iniciamos el escaneo pasándole la señal del interruptor
         await ndef.scan({ signal: nfcAbortController.current.signal });
         
         ndef.onreading = () => {
-          // 🛑 APAGAMOS LA ANTENA DE INMEDIATO AL LEER EL CHIP
-          if (nfcAbortController.current) {
-            nfcAbortController.current.abort();
-          }
+          if (nfcAbortController.current) nfcAbortController.current.abort();
           setEsperandoNFC(false);
           ejecutarGuardado(); 
         };
@@ -117,7 +143,6 @@ export default function EquipoNFC() {
     }
   };
 
-  // NUEVO: Función para apagar la antena si el usuario toca "Cancelar"
   const cancelarNFC = () => {
     if (nfcAbortController.current) {
       nfcAbortController.current.abort();
@@ -130,13 +155,20 @@ export default function EquipoNFC() {
 
     try {
       const hoy = new Date().toLocaleDateString('es-AR');
-      const rutaCarpeta = `Trazo/${userData.empresaId}/${localPadre.id}`;
-      const metadata = `extintor=${equipo.etiqueta}|ubicacion=${equipo.ubicacion}|local=${localPadre.name}|fecha=${hoy}`;
+      const tsGuardado = Date.now();
       
-      const photoURL = await uploadToCloudinary(imageFile, rutaCarpeta, metadata);
+      let photoURL = equipo?.fotoEvidencia || null;
+      
+      // Solo subimos imagen si sacó una foto nueva
+      if (imageFile) {
+        const rutaCarpeta = `Trazo/${userData.empresaId}/${localPadre.id}`;
+        const metadata = `extintor=${equipo.etiqueta}|ubicacion=${equipo.ubicacion}|local=${localPadre.name}|fecha=${hoy}`;
+        photoURL = await uploadToCloudinary(imageFile, rutaCarpeta, metadata);
+      }
 
       const updatedEquipos = localPadre.equipos.map(eq => {
         if (eq.etiqueta === equipo.etiqueta) {
+          
           const nuevoRegistro = {
             fecha: hoy,
             presion: formState.presion,
@@ -144,19 +176,24 @@ export default function EquipoNFC() {
             precinto: formState.precinto,
             accesibilidad: formState.accesibilidad,
             estadoFisico: formState.estadoFisico,
-            foto: photoURL
+            foto: photoURL,
+            timestampControl: tsGuardado
           };
+
+          // Si estamos editando, filtramos el registro anterior de HOY para no duplicarlo en el historial PDF
+          const historialSinHoy = (eq.historial || []).filter(h => h.fecha !== hoy);
 
           return { 
             ...eq, 
             fechaControl: hoy,
+            timestampControl: tsGuardado,
             fotoEvidencia: photoURL,
             estadoPresion: formState.presion,
             estadoCarga: formState.carga,
             estadoPrecinto: formState.precinto,
             estadoAccesibilidad: formState.accesibilidad,
             estadoFisico: formState.estadoFisico,
-            historial: [...(eq.historial || []), nuevoRegistro]
+            historial: [...historialSinHoy, nuevoRegistro]
           };
         }
         return eq;
@@ -164,9 +201,14 @@ export default function EquipoNFC() {
 
       await updateDoc(doc(db, "locales", localPadre.id), { equipos: updatedEquipos });
 
-      setEquipo({ ...equipo, fechaControl: hoy, fotoEvidencia: photoURL });
-      alert("¡Auditoría sellada y guardada con éxito!");
-      navigate('/auditoria');
+      // Actualizamos estado local y desactivamos modo edición
+      setEquipo({ 
+        ...equipo, 
+        fechaControl: hoy, 
+        timestampControl: tsGuardado, 
+        fotoEvidencia: photoURL 
+      });
+      setEditandoReciente(false);
       
     } catch (error) {
       console.error("Error al guardar:", error);
@@ -181,6 +223,7 @@ export default function EquipoNFC() {
   if (!equipo) return <div className="p-8 text-red font-mono text-sm">Matafuego {etiquetaNFC} no encontrado en tu jurisdicción.</div>;
 
   const yaRevisadoHoy = equipo.fechaControl === new Date().toLocaleDateString('es-AR');
+  const mostrarFormulario = !yaRevisadoHoy || editandoReciente;
 
   return (
     <div className="min-h-screen bg-paper p-4 md:p-8 font-sans pb-24 relative">
@@ -192,7 +235,6 @@ export default function EquipoNFC() {
           </div>
           <h2 className="text-white font-oswald text-2xl uppercase tracking-wide mb-2">Acercá el celular al sticker</h2>
           <p className="text-steel-2 text-sm">Mantenelo apoyado unos segundos para validar tu presencia física y sellar la auditoría.</p>
-          {/* NUEVO: Llamamos a la función cancelarNFC */}
           <button onClick={cancelarNFC} className="mt-8 text-red text-sm font-bold uppercase tracking-wider cursor-pointer">Cancelar</button>
         </div>
       )}
@@ -203,8 +245,8 @@ export default function EquipoNFC() {
             <h1 className="text-[22px] font-oswald text-ink uppercase tracking-wide m-0">#{equipo.etiqueta}</h1>
             <p className="text-[13px] font-bold text-steel-2 mt-1">{localPadre.name}</p>
           </div>
-          <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${yaRevisadoHoy ? 'bg-green/10 text-[#2e7d32]' : 'bg-amber-bg text-amber'}`}>
-            {yaRevisadoHoy ? 'Auditado Hoy' : 'Pendiente'}
+          <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${yaRevisadoHoy && !editandoReciente ? 'bg-green/10 text-[#2e7d32]' : 'bg-amber-bg text-amber'}`}>
+            {yaRevisadoHoy && !editandoReciente ? 'Auditado Hoy' : 'Pendiente'}
           </span>
         </div>
 
@@ -220,16 +262,36 @@ export default function EquipoNFC() {
         </div>
       </div>
 
-      {yaRevisadoHoy ? (
+      {!mostrarFormulario ? (
         <div className="card-base p-6 text-center border border-green bg-green/5">
-          <div className="w-12 h-12 bg-green text-white rounded-full flex items-center justify-center mx-auto mb-3 text-xl font-bold">✓</div>
+          <div className="w-12 h-12 bg-green text-white rounded-full flex items-center justify-center mx-auto mb-3 text-xl font-bold shadow-sm">✓</div>
           <h3 className="font-oswald text-[16px] text-[#2e7d32] uppercase mb-1">Matafuego Inspeccionado</h3>
           <p className="text-[13px] text-steel-2">Este equipo ya fue revisado y reportado en el sistema el día de hoy.</p>
-          <button onClick={() => navigate('/auditoria')} className="btn btn-primary mt-5 px-6">Volver a la ruta</button>
+          
+          {/* VENTANA DE 1 MINUTO PARA CORRECCIONES */}
+          {equipo.timestampControl && (
+            <div className="mt-4 pt-4 border-t border-green/20">
+              {timeLeft > 0 ? (
+                <button 
+                  onClick={handleHabilitarEdicion}
+                  className="text-[13px] font-bold text-amber hover:underline cursor-pointer bg-transparent border-none"
+                >
+                  ¿Anotaste algo mal? Corregir error ({timeLeft}s)
+                </button>
+              ) : (
+                <span className="text-[11px] text-steel-2 block">El tiempo de corrección ha expirado.</span>
+              )}
+            </div>
+          )}
+
+          <button onClick={() => navigate('/auditoria')} className="btn btn-primary mt-5 px-6 w-full cursor-pointer shadow-sm">Volver a la ruta</button>
         </div>
       ) : (
-        <div className="card-base p-5 shadow-sm bg-white">
-          <h3 className="text-[15px] mb-4 font-oswald uppercase text-ink border-b border-steel pb-2">Control Técnico Oficial</h3>
+        <div className="card-base p-5 shadow-sm bg-white border-2 border-amber-bg">
+          <h3 className="text-[15px] mb-4 font-oswald uppercase text-ink border-b border-steel pb-2 flex justify-between items-center">
+            Control Técnico Oficial 
+            {editandoReciente && <span className="text-[10px] bg-amber text-white px-2 py-0.5 rounded tracking-widest">MODO EDICIÓN</span>}
+          </h3>
           
           <div className="space-y-4 mb-6">
             <div>
@@ -275,16 +337,27 @@ export default function EquipoNFC() {
 
           <div className="mb-6">
             <label className="form-label">Evidencia Fotográfica (Obligatoria)</label>
-            <div className={`relative w-full border-2 border-dashed rounded-lg p-5 flex flex-col items-center justify-center gap-2 transition-colors cursor-pointer ${imageFile ? 'border-green bg-green/10 text-[#2e7d32]' : 'border-steel-2 bg-paper text-steel-2 hover:border-ink'}`}>
-              <span className="text-2xl">{imageFile ? '📸' : '📷'}</span>
-              <span className="text-[13px] font-bold">{imageFile ? 'Foto capturada (Tocar para cambiar)' : 'Tocar para abrir la cámara'}</span>
+            <div className={`relative w-full border-2 border-dashed rounded-lg p-5 flex flex-col items-center justify-center gap-2 transition-colors cursor-pointer ${imageFile || (editandoReciente && equipo.fotoEvidencia) ? 'border-green bg-green/10 text-[#2e7d32]' : 'border-steel-2 bg-paper text-steel-2 hover:border-ink'}`}>
+              <span className="text-2xl">{imageFile || (editandoReciente && equipo.fotoEvidencia) ? '📸' : '📷'}</span>
+              <span className="text-[13px] font-bold text-center">
+                {imageFile 
+                  ? 'Foto capturada (Tocar para cambiar)' 
+                  : (editandoReciente && equipo.fotoEvidencia) 
+                    ? 'Se mantendrá la foto que enviaste (Tocar para sacar una nueva)' 
+                    : 'Tocar para abrir la cámara'}
+              </span>
               <input type="file" accept="image/*" capture="environment" onChange={handlePhotoCapture} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
             </div>
           </div>
 
-          <button onClick={iniciarValidacionFisica} disabled={uploading} className="btn btn-ink w-full py-3.5 text-[14px] font-bold flex items-center justify-center gap-2 cursor-pointer">
-            {uploading ? 'Procesando reporte...' : 'Validar con NFC y Guardar'}
-          </button>
+          <div className="flex gap-2 flex-col sm:flex-row">
+            {editandoReciente && (
+               <button onClick={() => setEditandoReciente(false)} disabled={uploading} className="btn btn-outline flex-1 cursor-pointer">Cancelar Edición</button>
+            )}
+            <button onClick={iniciarValidacionFisica} disabled={uploading} className="btn btn-ink flex-[2] py-3.5 text-[14px] font-bold flex items-center justify-center gap-2 cursor-pointer shadow-sm">
+              {uploading ? 'Procesando reporte...' : 'Validar con NFC y Guardar'}
+            </button>
+          </div>
         </div>
       )}
     </div>
