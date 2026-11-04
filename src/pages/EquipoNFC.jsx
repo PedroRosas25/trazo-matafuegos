@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { collection, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -25,6 +25,18 @@ export default function EquipoNFC() {
   
   const [esperandoNFC, setEsperandoNFC] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // NUEVO: Controlador para apagar la antena NFC
+  const nfcAbortController = useRef(null);
+
+  // NUEVO: Medida de seguridad. Si el técnico cierra la app, apagamos la antena.
+  useEffect(() => {
+    return () => {
+      if (nfcAbortController.current) {
+        nfcAbortController.current.abort();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const fetchEquipoInfo = async () => {
@@ -76,9 +88,18 @@ export default function EquipoNFC() {
       try {
         setEsperandoNFC(true);
         const ndef = new window.NDEFReader();
-        await ndef.scan();
+        
+        // Creamos el interruptor de apagado
+        nfcAbortController.current = new AbortController();
+
+        // Iniciamos el escaneo pasándole la señal del interruptor
+        await ndef.scan({ signal: nfcAbortController.current.signal });
         
         ndef.onreading = () => {
+          // 🛑 APAGAMOS LA ANTENA DE INMEDIATO AL LEER EL CHIP
+          if (nfcAbortController.current) {
+            nfcAbortController.current.abort();
+          }
           setEsperandoNFC(false);
           ejecutarGuardado(); 
         };
@@ -94,6 +115,14 @@ export default function EquipoNFC() {
       const confirmar = window.confirm("Tu dispositivo no soporta el escaneo NFC automático.\n\nAl tocar ACEPTAR, declarás bajo juramento estar físicamente frente al matafuego.");
       if (confirmar) ejecutarGuardado();
     }
+  };
+
+  // NUEVO: Función para apagar la antena si el usuario toca "Cancelar"
+  const cancelarNFC = () => {
+    if (nfcAbortController.current) {
+      nfcAbortController.current.abort();
+    }
+    setEsperandoNFC(false);
   };
 
   const ejecutarGuardado = async () => {
@@ -163,7 +192,8 @@ export default function EquipoNFC() {
           </div>
           <h2 className="text-white font-oswald text-2xl uppercase tracking-wide mb-2">Acercá el celular al sticker</h2>
           <p className="text-steel-2 text-sm">Mantenelo apoyado unos segundos para validar tu presencia física y sellar la auditoría.</p>
-          <button onClick={() => setEsperandoNFC(false)} className="mt-8 text-red text-sm font-bold uppercase tracking-wider">Cancelar</button>
+          {/* NUEVO: Llamamos a la función cancelarNFC */}
+          <button onClick={cancelarNFC} className="mt-8 text-red text-sm font-bold uppercase tracking-wider cursor-pointer">Cancelar</button>
         </div>
       )}
 
